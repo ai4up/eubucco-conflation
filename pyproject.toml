@@ -1,0 +1,28 @@
+[project]
+name = "eubucco-conflation"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "folium>=0.19.4",
+    "geopandas>=1.0.1",
+    "lightgbm>=4.6.0",
+    "mapclassify>=2.8.1",
+    "matplotlib>=3.9.4",
+    "momepy>=0.9.0",
+    "networkx>=3.2.1",
+    "numba>=0.61.0",
+    "numpy>=2.0.2",
+    "pandas>=2.2.3",
+    "pyarrow>=19.0.1",
+    "scikit-learn>=1.6.1",
+    "scipy>=1.13.1",
+    "shap>=0.46.0",
+    "xgboost>=2.1.4",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+]
