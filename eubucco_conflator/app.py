@@ -20,9 +20,16 @@ executor = Executor(app)
 maps_dir = Path(app.static_folder) / "maps"
 
 
-def start():
+def start(display_cols=None):
     _clean_maps_dir()
     atexit.register(s.store_results)
+
+    if display_cols is not None:
+        app.config["VISIBLE_COLUMNS"] = display_cols
+    else:
+        app.config["VISIBLE_COLUMNS"] = [
+            "name", "address", "house_number", "country", "normalized_phone", "label"
+        ]
 
     webbrowser.open(f"http://127.0.0.1:5001/show_candidate")
     serve(app, host="127.0.0.1", port=5001)
@@ -65,28 +72,30 @@ def show_candidate(id=None):
 
     _create_html(id)
     
-    table_data = [{
-            "base_name": row['base_name'], # or row['base_id'] if that's a column in your DataFram'
-            "base_address": row['base_address'],
-            "base_country": row['base_country'],
-            "base_house_number": row['base_house_number'],
-            "base_normalized_phone": row['base_normalized_phone'],
-            "can_id": row['can_id'], 
-            "can_name": row['can_name'], 
-            "can_address": row['can_address'],
-            "can_country": row['can_country'],
-            "can_house_number": row['can_house_number'],
-            "can_normalized_phone": row['can_normalized_phone'],
-            "can_latitude": row['can_latitude'],
-            "can_longitude": row['can_longitude'],
-            }
-            for idx, row in s.candidates.loc[[id]].iterrows()]  
+    # Selected columns
+    visible_cols = app.config["VISIBLE_COLUMNS"]
+    fixed_cols = ["id", "latitude", "longitude", "label"]  # always needed internally
+
+    table_data = []
+    for _, row in s.candidates.loc[[id]].iterrows():
+        entry = {col: row.get(col, "") for col in visible_cols + fixed_cols}
+        entry.update({f"base_{col}": row.get(f"base_{col}", "") for col in visible_cols})
+        entry["tag_primary"] = row.get("tag_primary", "")
+        table_data.append(entry)
 
     if next_id := s.next_candidate_id():
         app.logger.debug(f"Pre-generating HTML map for candidate {next_id}")
         executor.submit(_create_html, next_id)
 
-    return render_template("show_candidate.html", label_function_script=_js_labeling_func(), id=id, table_data=table_data)
+    labeled_count, total_count = s.progress()
+
+    return render_template("show_candidate.html",
+                           label_function_script=_js_labeling_func(),
+                           id=id,
+                           table_data=table_data,
+                           visible_columns=visible_cols,
+                           labeled_count=labeled_count,
+                            total_count=total_count)
 
 
 def _html_exists(id):
@@ -94,14 +103,14 @@ def _html_exists(id):
 
 
 def _create_pop_up(row):
-    iframe = folium.IFrame(f"Name:{row['can_name']} \nAddress: {row['can_address']}", width=300, height=80)
+    iframe = folium.IFrame(f"Name:{row['name']} \nAddress: {row['address']}", width=300, height=80)
     return folium.Popup(iframe, min_width=300, max_width=500)
 
 
 def _adjust_zoom_level(pairs, base_coords):
     # Compute the maximum differences in latitude and longitude from the base POI
-    max_lat_diff = (pairs['can_latitude'] - base_coords[0]).abs().max()
-    max_lon_diff = (pairs['can_longitude'] - base_coords[1]).abs().max()
+    max_lat_diff = (pairs['latitude'] - base_coords[0]).abs().max()
+    max_lon_diff = (pairs['longitude'] - base_coords[1]).abs().max()
     delta = max(max_lat_diff, max_lon_diff)
 
     # Multiply delta by 2 to get a bounding box one zoom level less (more zoomed out)
@@ -129,7 +138,7 @@ def _create_html(id):
     # display candidates per base_poi
     if len(s.candidates) > 1:
         for _, row in pairs.iterrows():
-            coords = [row['can_latitude']+1e-5, row['can_longitude']+1e-5] # Add a small offset to avoid overlapping markers
+            coords = [row['latitude']+1e-5, row['longitude']+1e-5] # Add a small offset to avoid overlapping markers
             folium.Marker(coords,
                         popup=_create_pop_up(row),
                         icon=folium.Icon(color='blue', icon=''),
@@ -137,7 +146,7 @@ def _create_html(id):
                         ).add_to(m)
 
     else:
-        coords = [pairs['can_latitude']+1e-5, pairs['can_longitude']+1e-5] # Add a small offset to avoid overlapping markers
+        coords = [pairs['latitude']+1e-5, pairs['longitude']+1e-5] # Add a small offset to avoid overlapping markers
         folium.Marker(coords,
                         popup=_create_pop_up(row),
                         icon=folium.Icon(color='red', icon=''),

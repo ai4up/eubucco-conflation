@@ -50,6 +50,12 @@ class State:
             return None
 
     @classmethod
+    def progress(cls):
+        labeled = len({r["base_id"] for r in cls.results})
+        total = len(cls.gdf.index.unique())
+        return labeled, total
+
+    @classmethod
     def store_results(cls):
         pd.DataFrame(cls.results).drop_duplicates(subset=['base_id'], keep='first').to_csv(RESULTS_FILE, index=False)
         cls.logger(f"All places successfully labled. Results stored in {RESULTS_FILE}.")
@@ -65,7 +71,7 @@ class State:
 
     @classmethod
     def _ids_to_be_labeled(cls):
-        df_pairs = set(cls.gdf.reset_index()[['base_id', 'can_id']].apply(tuple, axis=1))
+        df_pairs = set(cls.gdf.reset_index()[['base_id', 'id']].apply(tuple, axis=1))
         if cls.results:
             results_pairs = set([(result['base_id'], result['existing_id']) for result in cls.results])
             return list(set([pair[0] for pair in df_pairs.difference(results_pairs)]))

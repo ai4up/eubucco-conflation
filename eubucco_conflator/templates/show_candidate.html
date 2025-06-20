@@ -18,12 +18,12 @@
     }
     /* Top half for the map */
     #map {
-      height: 50%;
+      height: 70%;
       position: relative;
     }
     /* Bottom half for the table */
     #table-section {
-      height: 50%;
+      height: 30%;
       overflow-y: auto;
       overflow-x: auto;
       padding: 0;
@@ -91,6 +91,41 @@
     .selected {
       background-color: #d0e0f0;
     }
+    #tag-display {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: rgba(255, 255, 255, 0.85);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-family: 'Helvetica', sans-serif;
+    font-size: 16px;
+    z-index: 1001;
+    max-width: 300px;
+    }
+    #top-right-container {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1001;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    }
+    .display-box {
+    background-color: rgba(255, 255, 255, 0.85);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-family: 'Helvetica', sans-serif;
+    font-size: 16px;
+    max-width: 300px;
+    }
+  
+  .map-link {
+  text-decoration: none;
+  font-size: 22px;
+  line-height: 1;
+}
   </style>
 </head>
 <body>
@@ -104,6 +139,19 @@
         height="100%"
         frameborder="0"
       ></iframe>
+      <div id="top-right-container">
+        <div class="display-box">
+        <strong>Progress:</strong><br>
+        {{ labeled_count }} of {{ total_count }} entries labeled
+        </div>
+        <div class="display-box">
+          <strong>Case:</strong> {{ table_data[0]['tag_primary'] }}
+        </div>
+        <div class="display-box">
+          <strong>LLM prediction:</strong><br>
+          {{ table_data[0]['label'] }}<br>
+        </div>
+      </div>
       <div id="buttons">
         <button class="btn btn-yes" onclick="labelPair('{{ id }}', 'yes', document.getElementById('selectedCanID').value)">Duplicate</button>
         <button class="btn btn-no" onclick="labelPair('{{ id }}', 'no', document.getElementById('selectedCanID').value)">Not Duplicate</button>
@@ -116,35 +164,89 @@
       <input type="hidden" id="selectedCanID" value="">
       <table>
         <thead>
-          <tr>
-            <th>Name</th>
-            <th>Address</th>
-            <th>Country</th>
-            <th>House Number</th>
-            <th>Phone Number</th>
-          </tr>
-          <tr>
-            <th>{{ table_data[0]['base_name'] }}</th>
-            <th>{{ table_data[0]['base_address'] }}</th>
-            <th>{{ table_data[0]['base_country'] }}</th>
-            <th>{{ table_data[0]['base_house_number'] }}</th>
-            <th>{{ table_data[0]['base_normalized_phone'] }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in table_data %}
-          <!-- Include candidate latitude and longitude as data attributes -->
-          <tr data-can-id="{{ row.can_id }}"
-              data-can-lat="{{ row.can_latitude }}"
-              data-can-lng="{{ row.can_longitude }}">
-            <td>{{ row.can_name }}</td>
-            <td>{{ row.can_address }}</td>
-            <td>{{ row.can_country }}</td>
-            <td>{{ row.can_house_number }}</td>
-            <td>{{ row.can_normalized_phone }}</td>
-          </tr>
+        <tr>
+          {% for col in visible_columns %}
+            <th>{{ col.replace('_', ' ').title() }}</th>
           {% endfor %}
-        </tbody>
+          <th>GMaps</th>
+          <th>Translate</th>
+        </tr>
+        <tr>
+          {% for col in visible_columns %}
+            <th>
+              {% set base_val = table_data[0]['base_' + col] %}
+              {% if col == "raw_websites" and base_val %}
+                {% if base_val is iterable and base_val is not string %}
+                  {% for link in base_val %}
+                    <a href="{{ link }}" target="_blank">{{ link }}</a>{% if not loop.last %}, {% endif %}
+                  {% endfor %}
+                {% else %}
+                  <a href="{{ base_val }}" target="_blank">{{ base_val }}</a>
+                {% endif %}
+              {% else %}
+                {{ base_val }}
+              {% endif %}
+            </th>
+          {% endfor %}
+          <th>
+            {% set query = table_data[0]['base_name'] ~ ' ' ~ table_data[0]['base_address'] if table_data[0]['base_name'] and table_data[0]['base_address'] else '' %}
+            {% if query %}
+            <a href="https://www.google.com/maps/search/{{ query | urlencode }}"
+              target="_blank"
+              title="Search on Google Maps"
+              class="map-link">🌍</a>
+            {% endif %}
+          </th>
+          <th>
+          {% if table_data[0]['base_name'] %}
+            <a href="https://translate.google.com/?sl=auto&tl=en&text={{ table_data[0]['base_name'] | urlencode }}"
+              target="_blank"
+              title="Translate name to English"
+              class="map-link">🌐</a>
+          {% endif %}
+        </th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in table_data %}
+        <tr data-can-id="{{ row.id }}"
+            data-can-lat="{{ row.latitude }}"
+            data-can-lng="{{ row.longitude }}">
+          {% for col in visible_columns %}
+           <td>
+            {% if col.endswith("raw_websites") and row[col] %}
+              {% if row[col] is iterable and row[col] is not string %}
+                {% for link in row[col] %}
+                  <a href="{{ link }}" target="_blank">{{ link }}</a>{% if not loop.last %}, {% endif %}
+                {% endfor %}
+              {% else %}
+                <a href="{{ row[col] }}" target="_blank">{{ row[col] }}</a>
+              {% endif %}
+            {% else %}
+              {{ row[col] }}
+            {% endif %}
+          </td>
+          {% endfor %}
+          <td>
+            {% set query = row['name'] ~ ' ' ~ row['address'] if row['name'] and row['address'] else '' %}
+            {% if query %}
+            <a href="https://www.google.com/maps/search/{{ (row.name ~ ' ' ~ row.address) | urlencode }}"
+              target="_blank"
+              title="Search on Google Maps"
+              class="map-link">🌍</a>
+            {% endif %}
+          </td>
+          <td>
+          {% if row['name'] %}
+            <a href="https://translate.google.com/?sl=auto&tl=en&text={{ row['name'] | urlencode }}"
+              target="_blank"
+              title="Translate name to English"
+              class="map-link">🌐</a>
+          {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
       </table>
     </div>
   </div>
