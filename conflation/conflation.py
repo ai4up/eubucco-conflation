@@ -136,7 +136,7 @@ def conflate_pair(
 
     if attribute_mapping:
         print(f"Added height information during overall conflation: +{conflated_buildings['filled_height'].sum()} ({conflated_buildings['filled_height'].mean():.2%})")
-        print(f"Added age information during overall conflation: +{conflated_buildings['filled_age'].sum()} ({conflated_buildings['filled_height'].mean():.2%})")
+        print(f"Added age information during overall conflation: +{conflated_buildings['filled_age'].sum()} ({conflated_buildings['filled_age'].mean():.2%})")
         print(f"Added type information during overall conflation: +{conflated_buildings['filled_type'].sum()} ({conflated_buildings['filled_type'].mean():.2%})")
 
     return conflated_buildings
