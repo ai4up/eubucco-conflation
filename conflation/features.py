@@ -84,20 +84,21 @@ def calculate_matching_features(
     block_similarities = block_similarities.add_prefix("block_")
     hypothetical_block_similarities = hypothetical_block_similarities.add_prefix("hypothetical_block_")
 
-    candidate_pairs = candidate_pairs.assign(
-        **new_fts,
-        **existing_fts,
-        **avg_fts,
-        **new_block_fts,
-        **existing_block_fts,
-        **avg_block_fts,
-        **bldg_diff,
-        **block_diff,
-        **bldg_similarities,
-        **block_similarities,
-        **hypothetical_block_similarities,
-        **spatial_fts,
-    ).copy()
+    candidate_pairs = pd.concat([
+        candidate_pairs,
+        new_fts,
+        existing_fts,
+        avg_fts,
+        new_block_fts,
+        existing_block_fts,
+        avg_block_fts,
+        bldg_diff,
+        block_diff,
+        bldg_similarities,
+        block_similarities,
+        hypothetical_block_similarities,
+        spatial_fts,
+    ], axis=1).copy()
 
     candidate_pairs["bldg_car_similarity"] = candidate_pairs[["existing_bldg_car_similarity", "new_bldg_car_similarity"]].min(axis=1)
     candidate_pairs["min_bldg_shape_index"] = candidate_pairs[["existing_bldg_shape_index", "new_bldg_shape_index"]].min(axis=1)
