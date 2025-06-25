@@ -112,7 +112,7 @@ def correct_local_shift(
     new_buildings["old_geometry"] = new_buildings["geometry"]
     aligned_geometry = new_buildings.apply(
         lambda row: translate(row.geometry, xoff=row.dx, yoff=row.dy) 
-        if row.geometry and row.geometry.is_valid and not np.isnan(row.dx) and not np.isnan(row.dy) 
+        if row.geometry and row.geometry.is_valid and not np.isnan(row.dx) and not np.isnan(row.dy)
         else row.geometry, axis=1
     )
 
