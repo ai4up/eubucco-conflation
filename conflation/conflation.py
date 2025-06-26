@@ -69,11 +69,11 @@ def conflate_gov_osm_msft(
     out_path = out_dir / f"{region_id}.parquet"
 
     if out_path.is_file():
-        print(f'Conflated data already exists for {region_id}.')
+        print(f"Conflated data already exists for {region_id}.")
         return
 
-    matching_dir_osm = (matching_dir / 'osm')
-    matching_dir_msft = (matching_dir / 'msft')
+    matching_dir_osm = (matching_dir / "osm")
+    matching_dir_msft = (matching_dir / "msft")
     matching_dir_osm.mkdir(parents=True, exist_ok=True)
     matching_dir_msft.mkdir(parents=True, exist_ok=True)
     matching_path_osm = matching_dir_osm / f"{region_id}.parquet"
@@ -86,12 +86,12 @@ def conflate_gov_osm_msft(
     osm = gpd.read_parquet(osm_path).set_index("id")
     msft = gpd.read_parquet(msft_path).set_index("id")
 
-    osm['dataset'] = 'osm'
-    msft['dataset'] = 'msft'
+    osm["dataset"] = "osm"
+    msft["dataset"] = "msft"
 
     if gov_path.exists():
         gov = gpd.read_parquet(gov_path).set_index("id")
-        gov['dataset'] = 'gov'
+        gov["dataset"] = "gov"
 
         print(f"Conflating Gov, OSM and MSFT for {region_id}.")
         conflated = conflate_pair(gov, osm, h3_res, model_path, matching_path_osm, attribute_mapping=True)
@@ -147,10 +147,10 @@ def conflate_pair(
 
 def _generate_unique_id(gdf: gpd.GeoDataFrame, db_version: str) -> gpd.GeoDataFrame:
     gdf = gdf.reset_index(names="id_source")
-    gdf['id'] = (
-        'v' + str(db_version) + '-' +
-        gdf['LAU_ID'] + '-' +
-        gdf.groupby('LAU_ID').cumcount().astype(str)
+    gdf["id"] = (
+        "v" + str(db_version) + "-" +
+        gdf["LAU_ID"] + "-" +
+        gdf.groupby("LAU_ID").cumcount().astype(str)
     )
 
     return gdf
