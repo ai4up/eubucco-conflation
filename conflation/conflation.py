@@ -5,7 +5,7 @@ import pandas as pd
 
 from geo_matcher.dataset import create_candidate_pairs_dataset
 from conflation.alignment import correct_local_shift
-from conflation.features import calculate_matching_features
+from conflation.feateng import calculate_matching_features
 from conflation.prediction import predict_match
 from conflation.merge import block_wise_merge
 

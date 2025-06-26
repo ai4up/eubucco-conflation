@@ -1,7 +1,7 @@
 import geopandas as gpd
 import pandas as pd
 
-from conflation.features import generate_blocks, blocks_id_mapping
+from conflation.geoutil import generate_blocks, blocks_id_mapping
 
 
 def block_wise_merge(
@@ -38,6 +38,9 @@ def block_wise_merge(
 
 
 def _fill_missing_attributes_blockwise(gdf1: gpd.GeoDataFrame, gdf2: gpd.GeoDataFrame, matching_pairs: pd.DataFrame) -> gpd.GeoDataFrame:
+    """
+    Fills missing attributes of existing buildings with averages of matching new building blocks.
+    """
     type_missings = gdf1["type"].isna()
     height_missings = gdf1["height"].isna()
     age_missings = gdf1["age"].isna()
@@ -76,7 +79,7 @@ def _fill_missing_attributes_by_intersection(
     matching_pairs: pd.DataFrame
 ) -> gpd.GeoDataFrame:
     """
-    Fills missing attributes of existing buildings with averages from intersecting, matching new buildings.
+    Fills missing attributes of existing buildings with weighted averages from intersecting, matching new buildings.
 
     Averages are weighted by intersection area.
     For categorical attributes, the category with the largest cumulative intersecting area is chosen.

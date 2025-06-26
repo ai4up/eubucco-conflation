@@ -12,6 +12,9 @@ HYPERPARAMETERS = {
 
 
 def predict_match(model_path: str, candidate_pairs: pd.DataFrame) -> pd.DataFrame:
+    """
+    Predicts whether pairs of geometries match using a pre-trained XGBoost model.
+    """
     model = xgb.XGBClassifier(random_state=42, **HYPERPARAMETERS, **XGBOOST_PARAMS)
     model.load_model(model_path)
 
