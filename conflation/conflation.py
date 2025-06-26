@@ -33,7 +33,7 @@ def conflate(
     ref_index, reference_data = _get_first_existing_parquet(region_id, data_dirs_input)
     reference_data["dataset"] = datasets[ref_index]
 
-    for data_dir, matching_dir, mapping, name in zip(data_dirs_input[ref_index+1:], data_dirs_matching[ref_index:], attribute_mapping[ref_index:], datasets[ref_index:]):
+    for data_dir, matching_dir, mapping, name in zip(data_dirs_input[ref_index+1:], data_dirs_matching[ref_index:], attribute_mapping[ref_index:], datasets[ref_index+1:]):
         new_data_path = Path(data_dir, f"{region_id}.parquet")
         matching_path = Path(matching_dir, f"{region_id}.parquet")
         matching_path.parent.mkdir(parents=True, exist_ok=True)
