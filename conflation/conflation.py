@@ -11,6 +11,7 @@ from conflation.merge import block_wise_merge
 
 
 def conflate(
+    datasets: list[str],
     region_id: str,
     data_dirs_input: list[str],
     data_dirs_matching: str,
@@ -30,8 +31,9 @@ def conflate(
         return
 
     ref_index, reference_data = _get_first_existing_parquet(region_id, data_dirs_input)
+    reference_data["dataset"] = datasets[ref_index]
 
-    for data_dir, matching_dir, mapping in zip(data_dirs_input[ref_index+1:], data_dirs_matching[ref_index:], attribute_mapping[ref_index:]):
+    for data_dir, matching_dir, mapping, name in zip(data_dirs_input[ref_index+1:], data_dirs_matching[ref_index:], attribute_mapping[ref_index:], datasets[ref_index:]):
         new_data_path = Path(data_dir, f"{region_id}.parquet")
         matching_path = Path(matching_dir, f"{region_id}.parquet")
         matching_path.parent.mkdir(parents=True, exist_ok=True)
@@ -41,6 +43,7 @@ def conflate(
             continue
 
         new_data = gpd.read_parquet(new_data_path).set_index("id")
+        new_data["dataset"] = name
         reference_data = conflate_pair(reference_data, new_data, h3_res, model_path, matching_path, mapping)
 
     reference_data = _generate_unique_id(reference_data, db_version)
