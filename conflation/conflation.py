@@ -46,6 +46,11 @@ def conflate(
         new_data["dataset"] = name
         reference_data = conflate_pair(reference_data, new_data, h3_res, model_path, matching_path, mapping)
 
+        if mapping:
+            reference_data["filled_height"] = reference_data["filled_height"].replace({True: name})
+            reference_data["filled_age"] = reference_data["filled_age"].replace({True: name})
+            reference_data["filled_type"] = reference_data["filled_type"].replace({True: name})
+
     reference_data = _generate_unique_id(reference_data, db_version)
     reference_data.to_parquet(results_path)
 
@@ -138,9 +143,9 @@ def conflate_pair(
     print(f"Added buildings during conflation stage: +{n_added_buildings} ({n_added_buildings / len(gdf1):.2%})")
 
     if attribute_mapping:
-        print(f"Added height information during overall conflation: +{conflated_buildings['filled_height'].sum()} ({conflated_buildings['filled_height'].mean():.2%})")
-        print(f"Added age information during overall conflation: +{conflated_buildings['filled_age'].sum()} ({conflated_buildings['filled_age'].mean():.2%})")
-        print(f"Added type information during overall conflation: +{conflated_buildings['filled_type'].sum()} ({conflated_buildings['filled_type'].mean():.2%})")
+        print(f"Added height information during conflation stage: +{conflated_buildings['filled_height'].eq(True).sum()} ({conflated_buildings['filled_height'].eq(True).mean():.2%})")
+        print(f"Added age information during conflation stage: +{conflated_buildings['filled_age'].eq(True).sum()} ({conflated_buildings['filled_age'].eq(True).mean():.2%})")
+        print(f"Added type information during conflation stage: +{conflated_buildings['filled_type'].eq(True).sum()} ({conflated_buildings['filled_type'].eq(True).mean():.2%})")
 
     return conflated_buildings
 

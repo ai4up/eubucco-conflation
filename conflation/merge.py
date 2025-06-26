@@ -130,10 +130,17 @@ def _fill_missing_attributes_by_intersection(
     if not type_dominant.empty:
         gdf1["type"] = gdf1["type"].fillna(type_dominant)
 
-    # Track for which buildings attributes were merged
-    gdf1["filled_type"] = type_missings & gdf1["type"].notna()
-    gdf1["filled_height"] = height_missings & gdf1["height"].notna()
-    gdf1["filled_age"] = age_missings & gdf1["age"].notna()
+    # Track filled attributes
+    if "filled_height" not in gdf1.columns:
+        gdf1["filled_height"] = pd.NA
+    if "filled_age" not in gdf1.columns:
+        gdf1["filled_age"] = pd.NA
+    if "filled_type" not in gdf1.columns:
+        gdf1["filled_type"] = pd.NA
+
+    gdf1.loc[height_missings & gdf1["height"].notna(), "filled_height"] = True
+    gdf1.loc[age_missings & gdf1["age"].notna(), "filled_age"] = True
+    gdf1.loc[type_missings & gdf1["type"].notna(), "filled_type"] = True
 
     return gdf1
 
