@@ -90,10 +90,10 @@ def _fill_missing_attributes_by_intersection(
 
     # Focus only on buildings with missing attributes
     gdf1_missing = gdf1[type_missings | height_missings | age_missings]
-    gdf1_missing = gdf1_missing[["block_id", "geometry"]].reset_index(names="building_id")
+    gdf1_missing = gdf1_missing[["block_id", "geometry"]]
 
     # Determine intersecting building pairs
-    intersections = gpd.overlay(gdf1_missing, gdf2, how="intersection")
+    intersections = gpd.overlay(gdf1_missing.reset_index(names="building_id"), gdf2, how="intersection")
     intersections["area"] = intersections.geometry.area
 
     # Only merge attributes between matching blocks
@@ -103,6 +103,11 @@ def _fill_missing_attributes_by_intersection(
         left_on=["block_id_1", "block_id_2"],
         right_on=["block_id_existing", "block_id_new"]
     )
+
+    # Only fill attributes for buildings ≥50% intersected
+    inter_area = intersections_matching.groupby("building_id")["area"].sum()
+    valid_ids = inter_area[inter_area >= 0.5 * gdf1_missing.loc[inter_area.index]["geometry"].area].index
+    intersections_matching = intersections_matching[intersections_matching["building_id"].isin(valid_ids)]
 
     # Caclulate average age and height weighted by intersection area
     def weighted_avg(group, column):
