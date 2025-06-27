@@ -12,6 +12,7 @@ from conflation.features import (
     compute_aligned_iou,
     compute_wall_alignment,
     compute_shared_wall_length,
+    compute_shared_wall_w_neighbors,
     calculate_car_similarity,
     calculate_area_intersected,
     count_intersecting_geometries,
@@ -120,7 +121,6 @@ def calculate_matching_features(
     print("Calculating context features...")
     candidate_pairs = calculate_buffer_features(candidate_pairs, existing_buildings, new_buildings)
     candidate_pairs = calculate_context_features(candidate_pairs, existing_buildings, new_buildings)
-    candidate_pairs = calculate_shared_wall_w_neighbors(candidate_pairs, existing_buildings, new_buildings)
 
     return candidate_pairs
 
@@ -153,7 +153,7 @@ def calculate_similarity_features(
     similarities["aligned_ioa"] = compute_aligned_ioa(geoms1, geoms2)
     similarities["aligned_iou"] = compute_aligned_iou(geoms1, geoms2)
     similarities["wall_alignment"] = compute_wall_alignment(geoms1, geoms2)
-    similarities["shared_walls"] = compute_shared_wall_length(geoms1, geoms2, strict=False)
+    similarities["shared_walls"] = compute_shared_wall_length(geoms1, geoms2)
 
     return similarities
 
@@ -211,9 +211,13 @@ def calculate_neighborhood_features(
     candidates["_new_n_intersecting_neighbors"] = candidates["_new_n_intersecting_neighbors"].fillna(0)
     candidates["_new_area_share_intersected_neighbors"] = candidates["_new_area_share_intersected_neighbors"].fillna(0)
 
+    candidates["_existing_shared_walls_neighbors"] = compute_shared_wall_w_neighbors(candidates["geometry_existing"], new_buildings.geometry)
+    candidates["_new_shared_walls_neighbors"] = compute_shared_wall_w_neighbors(candidates["geometry_new"], existing_buildings.geometry)
+
     candidates["alignment"] = candidates[["_existing_area_share_intersected_neighbors", "_new_area_share_intersected_neighbors"]].mean(axis=1)
     candidates["agreement"] = candidates[["_existing_n_intersecting_neighbors", "_new_n_intersecting_neighbors"]].mean(axis=1)
     candidates["agreement_diff"] = (candidates["_existing_n_intersecting_neighbors"] - candidates["_new_n_intersecting_neighbors"]).abs()
+    candidates["shared_walls_neighbors"] = candidates[["_existing_shared_walls_neighbors", "_new_shared_walls_neighbors"]].max(axis=1)
 
     return candidates
 
@@ -225,20 +229,6 @@ def calculate_spatial_features(buildings: gpd.GeoSeries) -> pd.DataFrame:
     fts["lon"] = centroid.x
 
     return fts
-
-
-def calculate_shared_wall_w_neighbors(
-    candidates: gpd.GeoDataFrame, existing_buildings: gpd.GeoDataFrame, new_buildings: gpd.GeoDataFrame
-) -> gpd.GeoDataFrame:
-    candidates["_existing_shared_walls_neighbors"] = momepy.shared_walls(pd.concat([candidates["geometry_existing"], new_buildings.geometry]), strict=False)
-    candidates["_existing_shared_walls_neighbors"] = candidates["_existing_shared_walls_neighbors"] / candidates["geometry_existing"].boundary.length
-
-    candidates["_new_shared_walls_neighbors"] = momepy.shared_walls(pd.concat([candidates["geometry_new"], existing_buildings.geometry]), strict=False)
-    candidates["_new_shared_walls_neighbors"] = candidates["_new_shared_walls_neighbors"] / candidates["geometry_new"].boundary.length
-
-    candidates["shared_walls_neighbors"] = candidates[["_existing_shared_walls_neighbors", "_new_shared_walls_neighbors"]].max(axis=1)
-
-    return candidates
 
 
 def _percentage_diff(

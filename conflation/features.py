@@ -1,3 +1,6 @@
+from collections import defaultdict
+
+import momepy
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -75,7 +78,7 @@ def compute_wall_alignment(
 
 
 def compute_shared_wall_length(
-    geoms1: gpd.GeoSeries, geoms2: gpd.GeoSeries, strict: bool = True, tolerance: float = 0.1
+    geoms1: gpd.GeoSeries, geoms2: gpd.GeoSeries, strict: bool = False, tolerance: float = 0.1
 ) -> pd.Series:
     """
     Calculate the shared wall length between pairs of geometries.
@@ -101,6 +104,31 @@ def compute_shared_wall_length(
         intersections = intersections.clip(lower=0, upper=orig_geoms1_lengths)
 
     return pd.Series(intersections, index=geoms1.index, name="shared_wall_length")
+
+
+def compute_shared_wall_w_neighbors(
+    geoms: gpd.GeoSeries, neighbors: gpd.GeoSeries, strict: bool = False, tolerance: float = 0.01
+) -> pd.Series:
+    """
+    Calculate the proportion of a geometry's wall length shared with neighboring geometries.
+    """
+    shared_walls = pd.Series(index=geoms.index)
+    intersecting = neighbors.sindex.query(geoms)
+
+    # Convert [(A, B), (A, C), ...] pairs to {A: [B, C]}
+    d = defaultdict(list)
+    for geom_idx, neighbor_idx in zip(intersecting[0], intersecting[1]):
+        d[geom_idx].append(neighbor_idx)
+
+    for geom_idx, neighbor_idx in d.items():
+        local_buildings = pd.concat([geoms.iloc[[geom_idx]], neighbors.iloc[neighbor_idx]])
+        shared_wall = momepy.shared_walls(local_buildings, strict, tolerance)
+        idx = geoms.index[geom_idx]
+        shared_walls.at[idx] = shared_wall.loc[idx]
+
+    shared_walls_norm = shared_walls / geoms.boundary.length
+
+    return shared_walls_norm
 
 
 def count_intersecting_geometries(
