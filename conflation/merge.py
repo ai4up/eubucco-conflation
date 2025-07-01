@@ -116,13 +116,13 @@ def _fill_missing_attributes_by_intersection(
         return (group[column] * group["area"]).sum() / group["area"].sum()
 
     # Choose building type with largest cumulative intersecting area
-    def most_dominant_type_by_area(group):
-        return group.groupby("type")["area"].sum().idxmax()
+    def most_dominant_category_by_area(group, column):
+        return group.groupby(column)["area"].sum().idxmax()
 
     # Aggregate attributes of all matches
     height_avg = intersections_matching[~intersections_matching["height"].isna()].groupby("building_id").apply(lambda g: weighted_avg(g, "height"))
     age_avg = intersections_matching[~intersections_matching["age"].isna()].groupby("building_id").apply(lambda g: weighted_avg(g, "age"))
-    type_dominant = intersections_matching[~intersections_matching["type"].isna()].groupby("building_id").apply(most_dominant_type_by_area)
+    type_dominant = intersections_matching[~intersections_matching["type"].isna()].groupby("building_id").apply(most_dominant_category_by_area, column="type")
 
     # Merge attributes
     if not height_avg.empty:
@@ -192,10 +192,20 @@ def _merge_attributes_by_intersection(
         """Calculate average age and height weighted by intersection area"""
         return (group[column] * group["area_int"]).sum() / group["area_int"].sum()
 
-    def most_dominant_type_by_area(group):
+    def most_dominant_category_by_area(group, column):
         """Choose building type with largest cumulative intersecting area"""
-        return group.groupby("type")["area_int"].sum().idxmax()
+        return group.groupby(column)["area_int"].sum().idxmax()
 
+    gdf1 = _merge_attribute(gdf1, gdf2, intersections_matching, "height", weighted_avg)
+    gdf1 = _merge_attribute(gdf1, gdf2, intersections_matching, "age", weighted_avg)
+    gdf1 = _merge_attribute(gdf1, gdf2, intersections_matching, "type", most_dominant_category_by_area)
+
+    return gdf1
+
+
+def _merge_attribute(
+    gdf1, gdf2, mapping, attr, agg_func
+):
     def argmax_iou(group):
         """
         Returns the subset of the group that maximizes a heuristic estimate of the intersection-over-union (IoU).
@@ -234,30 +244,19 @@ def _merge_attributes_by_intersection(
         area = gdf1.loc[group.name].geometry.area
         return intersection_area / area
 
-    # Drop buildings that do not have any attributes to merge
-    height_ref_bldgs = intersections_matching[~intersections_matching["height"].isna()]
-    age_ref_bldgs = intersections_matching[~intersections_matching["age"].isna()]
-    type_ref_bldgs = intersections_matching[~intersections_matching["type"].isna()]
+    mapping = mapping[~mapping[attr].isna()]
+    if mapping.empty:
+        return gdf1
 
-    # (1) Only consider intersecting buildings that increase the IoU, (2) aggregate attributes, (3) track source IDs, and (4) calculate confidence score based on IoU
-    if not height_ref_bldgs.empty:
-        height_ref_bldgs = height_ref_bldgs.groupby("building_id_1", group_keys=False).apply(argmax_iou)
-        gdf1["height_mapped"] = height_ref_bldgs.groupby("building_id_1").apply(lambda g: weighted_avg(g, "height"))
-        gdf1["height_source_ids"] = height_ref_bldgs.groupby("building_id_1")["building_id_2"].apply(list)
-        gdf1["height_confidence_iou"] = height_ref_bldgs.groupby("building_id_1").apply(iou)
-        gdf1["height_confidence_ioa"] = height_ref_bldgs.groupby("building_id_1").apply(ioa)
-    if not age_ref_bldgs.empty:
-        age_ref_bldgs = age_ref_bldgs.groupby("building_id_1", group_keys=False).apply(argmax_iou)
-        gdf1["age_mapped"] = age_ref_bldgs.groupby("building_id_1").apply(lambda g: weighted_avg(g, "age"))
-        gdf1["age_source_ids"] = age_ref_bldgs.groupby("building_id_1")["building_id_2"].apply(list)
-        gdf1["age_confidence_iou"] = age_ref_bldgs.groupby("building_id_1").apply(iou)
-        gdf1["age_confidence_ioa"] = age_ref_bldgs.groupby("building_id_1").apply(ioa)
-    if not type_ref_bldgs.empty:
-        type_ref_bldgs = type_ref_bldgs.groupby("building_id_1", group_keys=False).apply(argmax_iou)
-        gdf1["type_mapped"] = type_ref_bldgs.groupby("building_id_1").apply(most_dominant_type_by_area)
-        gdf1["type_source_ids"] = type_ref_bldgs.groupby("building_id_1")["building_id_2"].apply(list)
-        gdf1["type_confidence_iou"] = type_ref_bldgs.groupby("building_id_1").apply(iou)
-        gdf1["type_confidence_ioa"] = type_ref_bldgs.groupby("building_id_1").apply(ioa)
+    # Only consider intersecting buildings that increase the IoU
+    mapping = mapping.groupby("building_id_1", group_keys=False).apply(argmax_iou)
+    print(mapping)
+
+    # (1) Aggregate attributes, (2) track source IDs, and (3) calculate confidence scores
+    gdf1[f"{attr}_source_ids"] = mapping.groupby("building_id_1")["building_id_2"].apply(list)
+    gdf1[f"{attr}_mapped"] = mapping.groupby("building_id_1").apply(lambda g: agg_func(g, attr))
+    gdf1[f"{attr}_confidence_iou"] = mapping.groupby("building_id_1").apply(iou)
+    gdf1[f"{attr}_confidence_ioa"] = mapping.groupby("building_id_1").apply(ioa)
 
     return gdf1
 
