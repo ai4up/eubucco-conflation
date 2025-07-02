@@ -245,12 +245,14 @@ def _merge_attribute(
         return intersection_area / area
 
     mapping = mapping[~mapping[attr].isna()]
+
     if mapping.empty:
+        for suffix in ["source_ids", "mapped", "confidence_iou", "confidence_ioa"]:
+            gdf1[f"{attr}_{suffix}"] = pd.NA
         return gdf1
 
     # Only consider intersecting buildings that increase the IoU
     mapping = mapping.groupby("building_id_1", group_keys=False).apply(argmax_iou)
-    print(mapping)
 
     # (1) Aggregate attributes, (2) track source IDs, and (3) calculate confidence scores
     gdf1[f"{attr}_source_ids"] = mapping.groupby("building_id_1")["building_id_2"].apply(list)
