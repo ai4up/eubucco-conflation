@@ -1,4 +1,5 @@
 from pathlib import Path
+import itertools
 
 import geopandas as gpd
 import pandas as pd
@@ -46,10 +47,15 @@ def conflate(
         new_data["dataset"] = name
         reference_data = conflate_pair(reference_data, new_data, h3_res, model_path, matching_path, mapping)
 
-        if mapping:
+        if mapping and 'filled_height' in reference_data.columns:
             reference_data["filled_height"] = reference_data["filled_height"].replace({True: name})
             reference_data["filled_age"] = reference_data["filled_age"].replace({True: name})
             reference_data["filled_type"] = reference_data["filled_type"].replace({True: name})
+
+        if mapping and 'height_mapped' in reference_data.columns:
+            attr = ["height", "age", "type"]
+            suffixes = ["source_ids", "mapped", "confidence_iou", "confidence_ioa"]
+            reference_data = reference_data.rename(columns={f"{attr}_{suffix}": f"{attr}_{suffix}_{name}" for attr, suffix in itertools.product(attr, suffixes)})
 
     reference_data = _generate_unique_id(reference_data, db_version)
     reference_data.to_parquet(results_path)
@@ -142,7 +148,12 @@ def conflate_pair(
     n_added_buildings = len(conflated_buildings) - len(gdf1)
     print(f"Added buildings during conflation stage: +{n_added_buildings} ({n_added_buildings / len(gdf1):.2%})")
 
-    if attribute_mapping:
+    if attribute_mapping and 'height_mapped' in conflated_buildings.columns:
+        print(f"Added height information during conflation stage: +{conflated_buildings['height_mapped'].notna().sum()} ({conflated_buildings['height_mapped'].notna().mean():.2%})")
+        print(f"Added age information during conflation stage: +{conflated_buildings['age_mapped'].notna().sum()} ({conflated_buildings['age_mapped'].notna().mean():.2%})")
+        print(f"Added type information during conflation stage: +{conflated_buildings['type_mapped'].notna().sum()} ({conflated_buildings['type_mapped'].notna().mean():.2%})")
+
+    if attribute_mapping and 'filled_height' in conflated_buildings.columns:
         print(f"Added height information during conflation stage: +{conflated_buildings['filled_height'].eq(True).sum()} ({conflated_buildings['filled_height'].eq(True).mean():.2%})")
         print(f"Added age information during conflation stage: +{conflated_buildings['filled_age'].eq(True).sum()} ({conflated_buildings['filled_age'].eq(True).mean():.2%})")
         print(f"Added type information during conflation stage: +{conflated_buildings['filled_type'].eq(True).sum()} ({conflated_buildings['filled_type'].eq(True).mean():.2%})")
