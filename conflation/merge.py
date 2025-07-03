@@ -43,15 +43,21 @@ def _fill_missing_attributes_blockwise(gdf1: gpd.GeoDataFrame, gdf2: gpd.GeoData
     """
     Fills missing attributes of existing buildings with averages of matching new building blocks.
     """
-    type_missings = gdf1["type"].isna()
     height_missings = gdf1["height"].isna()
     age_missings = gdf1["age"].isna()
+    type_missings = gdf1["type"].isna()
+    res_type_missing = gdf1["residential_type"].isna()
+
+    # Ensure consistent schema of input datasets
+    if "residential_type" not in gdf2.columns:
+        gdf2["residential_type"] = pd.NA
 
     matching = gdf2[gdf2["block_id"].isin(matching_pairs["block_id_new"])]
     block_attributes = matching.groupby("block_id").agg({
         "height": "mean",
         "age": "mean",
         "type": _most_frequent_category,
+        "residential_type": _most_frequent_category,
     })
 
     matched_block_attributes = matching_pairs.merge(
@@ -62,15 +68,18 @@ def _fill_missing_attributes_blockwise(gdf1: gpd.GeoDataFrame, gdf2: gpd.GeoData
         "height": "mean",
         "age": "mean",
         "type": _most_frequent_category,
+        "residential_type": _most_frequent_category,
     })
 
     gdf1["height"] = gdf1["height"].fillna(gdf1["block_id"].map(matched_block_attributes["height"]))
     gdf1["age"] = gdf1["age"].fillna(gdf1["block_id"].map(matched_block_attributes["age"]))
     gdf1["type"] = gdf1["type"].fillna(gdf1["block_id"].map(matched_block_attributes["type"]))
+    gdf1["residential_type"] = gdf1["residential_type"].fillna(gdf1["block_id"].map(matched_block_attributes["residential_type"]))
 
     gdf1["filled_type"] = type_missings & gdf1["type"].notna()
     gdf1["filled_height"] = height_missings & gdf1["height"].notna()
     gdf1["filled_age"] = age_missings & gdf1["age"].notna()
+    gdf1["filled_residential_type"] = res_type_missing & gdf1["residential_type"].notna()
 
     return gdf1
 
@@ -86,14 +95,19 @@ def _fill_missing_attributes_by_intersection(
     For numerical attributes, averages are weighted by intersection area.
     For categorical attributes, the category with the largest cumulative intersecting area is chosen.
     """
-    type_missings = gdf1["type"].isna()
     height_missings = gdf1["height"].isna()
     age_missings = gdf1["age"].isna()
+    type_missings = gdf1["type"].isna()
+    res_type_missing = gdf1["residential_type"].isna()
 
     # Focus only on buildings with missing attributes
-    gdf1_missing = gdf1[type_missings | height_missings | age_missings]
+    gdf1_missing = gdf1[height_missings | age_missings | type_missings | res_type_missing]
     gdf1_missing = gdf1_missing[["block_id", "geometry"]]
 
+    # Ensure consistent schema of input datasets
+    if "residential_type" not in gdf2.columns:
+        gdf2["residential_type"] = pd.NA
+    
     # Determine intersecting building pairs
     intersections = gpd.overlay(gdf1_missing.reset_index(names="building_id"), gdf2, how="intersection")
     intersections["area"] = intersections.geometry.area
@@ -123,6 +137,7 @@ def _fill_missing_attributes_by_intersection(
     height_avg = intersections_matching[~intersections_matching["height"].isna()].groupby("building_id").apply(lambda g: weighted_avg(g, "height"))
     age_avg = intersections_matching[~intersections_matching["age"].isna()].groupby("building_id").apply(lambda g: weighted_avg(g, "age"))
     type_dominant = intersections_matching[~intersections_matching["type"].isna()].groupby("building_id").apply(most_dominant_category_by_area, column="type")
+    res_type_dominant = intersections_matching[~intersections_matching["residential_type"].isna()].groupby("building_id").apply(most_dominant_category_by_area, column="residential_type")
 
     # Merge attributes
     if not height_avg.empty:
@@ -131,6 +146,8 @@ def _fill_missing_attributes_by_intersection(
         gdf1["age"] = gdf1["age"].fillna(age_avg)
     if not type_dominant.empty:
         gdf1["type"] = gdf1["type"].fillna(type_dominant)
+    if not res_type_dominant.empty:
+        gdf1["residential_type"] = gdf1["residential_type"].fillna(res_type_dominant)
 
     # Track filled attributes
     if "filled_height" not in gdf1.columns:
@@ -139,10 +156,13 @@ def _fill_missing_attributes_by_intersection(
         gdf1["filled_age"] = pd.NA
     if "filled_type" not in gdf1.columns:
         gdf1["filled_type"] = pd.NA
+    if "filled_residential_type" not in gdf1.columns:
+        gdf1["filled_residential_type"] = pd.NA
 
     gdf1.loc[height_missings & gdf1["height"].notna(), "filled_height"] = True
     gdf1.loc[age_missings & gdf1["age"].notna(), "filled_age"] = True
     gdf1.loc[type_missings & gdf1["type"].notna(), "filled_type"] = True
+    gdf1.loc[res_type_missing & gdf1["residential_type"].notna(), "filled_residential_type"] = True
 
     return gdf1
 
@@ -172,7 +192,11 @@ def _merge_attributes_by_intersection(
     gdf1_tmp = gdf1[["block_id", "geometry"]].reset_index(names="building_id")
     gdf1_tmp["area"] = gdf1_tmp.area
 
-    gdf2_tmp = gdf2[["block_id", "geometry", "height", "age", "type"]].reset_index(names="building_id")
+    # Ensure consistent schema of input datasets
+    if "residential_type" not in gdf2.columns:
+        gdf2["residential_type"] = pd.NA
+
+    gdf2_tmp = gdf2[["block_id", "geometry", "height", "age", "type", "residential_type"]].reset_index(names="building_id")
     gdf2_tmp["area"] = gdf2_tmp.area
 
     # Determine intersecting building pairs
