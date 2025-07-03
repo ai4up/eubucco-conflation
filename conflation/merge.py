@@ -223,13 +223,18 @@ def _merge_attributes_by_intersection(
     gdf1 = _merge_attribute(gdf1, gdf2, intersections_matching, "height", weighted_avg)
     gdf1 = _merge_attribute(gdf1, gdf2, intersections_matching, "age", weighted_avg)
     gdf1 = _merge_attribute(gdf1, gdf2, intersections_matching, "type", most_dominant_category_by_area)
+    gdf1 = _merge_attribute(gdf1, gdf2, intersections_matching, "residential_type", most_dominant_category_by_area)
 
     return gdf1
 
 
 def _merge_attribute(
-    gdf1, gdf2, mapping, attr, agg_func
-):
+    gdf1: gpd.GeoDataFrame,
+    gdf2: gpd.GeoDataFrame,
+    mapping: pd.DataFrame,
+    attr: str,
+    agg_func: callable
+) -> gpd.GeoDataFrame:
     def argmax_iou(group):
         """
         Returns the subset of the group that maximizes a heuristic estimate of the intersection-over-union (IoU).
