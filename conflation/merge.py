@@ -2,7 +2,7 @@ import geopandas as gpd
 import pandas as pd
 import shapely
 
-from conflation.geoutil import generate_blocks, blocks_id_mapping
+from conflation.geoutil import generate_blocks, blocks_id_mapping, iou
 
 
 def block_wise_merge(
@@ -27,6 +27,7 @@ def block_wise_merge(
     # Block-wise attribute mapping
     if attribute_mapping:
         matching_block_pairs = candidate_pairs[candidate_pairs["match"]][["block_id_existing", "block_id_new"]].drop_duplicates()
+        existing_buildings["matching_confidence"] = existing_buildings["block_id"].map(_block_iou(existing_blocks, new_blocks, matching_block_pairs))
         # existing_buildings = _fill_missing_attributes_blockwise(existing_buildings, new_buildings, matching_block_pairs)
         # existing_buildings = _fill_missing_attributes_by_intersection(existing_buildings, new_buildings, matching_block_pairs)
         existing_buildings = _merge_attributes_by_intersection(existing_buildings, new_buildings, matching_block_pairs)
@@ -294,7 +295,27 @@ def _merge_attribute(
 
 def _most_frequent_category(s: pd.Series) -> str:
     value_counts = s.value_counts()
+    if value_counts.empty:
+        return pd.NA
+
     max_count = value_counts.max()
     most_frequent = value_counts[value_counts == max_count].index[0]
 
     return most_frequent
+
+def _block_iou(
+    gdf1: gpd.GeoDataFrame,
+    gdf2: gpd.GeoDataFrame,
+    matching_pairs: pd.DataFrame
+) -> gpd.GeoDataFrame:
+    """For each existing block (gdf1), compute IoU with matching new blocks (gdf2)."""
+    pairs = matching_pairs.merge(
+        gdf2[["geometry"]], left_on="block_id_new", right_index=True
+    )
+    pairs = pairs.set_geometry("geometry", crs=gdf2.crs)
+    matching_new_geoms = pairs.dissolve(by="block_id_existing").geometry
+    existing_geoms = gdf1.loc[matching_new_geoms.index].geometry
+    iou_values = iou(existing_geoms, matching_new_geoms)
+    iou_series = pd.Series(iou_values.values, index=existing_geoms.index)
+
+    return iou_series

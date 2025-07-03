@@ -137,6 +137,17 @@ def buffer_area(geoms: gpd.GeoSeries, size: float = 1) -> pd.Series:
     return geoms.buffer(size, join_style="mitre").difference(geoms).area
 
 
+def iou(geoms1: gpd.GeoSeries, geoms2: gpd.GeoSeries) -> pd.Series:
+    """
+    Compute the pairwise Intersection over Union (IoU) for two sets of geometries."""
+    intersection = geoms1.intersection(geoms2, align=False).area
+    union = geoms1.union(geoms2, align=False).area
+    iou = intersection / union
+    iou = iou.fillna(0)
+
+    return iou
+
+
 def _simplified_rectangular_buffer(geoms: gpd.GeoSeries, size: float) -> gpd.GeoSeries:
     """
     Create a simplified rectangular buffer around each geometry.

@@ -57,6 +57,7 @@ def conflate(
             attr = ["height", "age", "type", "residential_type"]
             suffixes = ["source_ids", "mapped", "confidence_iou", "confidence_ioa"]
             reference_data = reference_data.rename(columns={f"{attr}_{suffix}": f"{attr}_{suffix}_{name}" for attr, suffix in itertools.product(attr, suffixes)})
+            reference_data = reference_data.rename(columns={"matching_confidence": f"matching_confidence_{name}"})
 
     reference_data = _generate_unique_id(reference_data, db_version)
     reference_data.to_parquet(results_path)
