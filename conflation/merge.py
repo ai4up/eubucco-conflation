@@ -2,7 +2,7 @@ import geopandas as gpd
 import pandas as pd
 import shapely
 
-from conflation.geoutil import generate_blocks, blocks_id_mapping, iou
+from conflation.geoutil import generate_blocks, blocks_id_mapping, iou, dissolve_geometries_of_m_n_matches
 
 
 def block_wise_merge(
@@ -108,7 +108,7 @@ def _fill_missing_attributes_by_intersection(
     # Ensure consistent schema of input datasets
     if "residential_type" not in gdf2.columns:
         gdf2["residential_type"] = pd.NA
-    
+
     # Determine intersecting building pairs
     intersections = gpd.overlay(gdf1_missing.reset_index(names="building_id"), gdf2, how="intersection")
     intersections["area"] = intersections.geometry.area
@@ -258,7 +258,7 @@ def _merge_attribute(
 
         return group
 
-    def iou(group):
+    def iou_group(group):
         """
         Returns the intersection-over-union (IoU) of the group. Robust to overlapping polygons.
         """
@@ -266,7 +266,7 @@ def _merge_attribute(
         union_area = shapely.unary_union([gdf1.loc[group.name].geometry, *gdf2.loc[group["building_id_2"]].geometry]).area
         return intersection_area / union_area
 
-    def ioa(group):
+    def ioa_group(group):
         """
         Returns the intersection-over-area (IoA) of the group. Robust to overlapping polygons.
         """
@@ -277,18 +277,23 @@ def _merge_attribute(
     mapping = mapping[~mapping[attr].isna()]
 
     if mapping.empty:
-        for suffix in ["source_ids", "mapped", "confidence_iou", "confidence_ioa"]:
+        for suffix in ["source_ids", "merged", "confidence_iou", "confidence_ioa"]:
             gdf1[f"{attr}_{suffix}"] = pd.NA
         return gdf1
 
     # Only consider intersecting buildings that increase the IoU
     mapping = mapping.groupby("building_id_1", group_keys=False).apply(argmax_iou)
 
+    # Dissolve geometries of m:n matches
+    aggregated_matches = dissolve_geometries_of_m_n_matches(mapping, gdf1, gdf2)
+    aggregated_matches["iou"] = iou(aggregated_matches["geometry_1"], aggregated_matches["geometry_2"])
+
     # (1) Aggregate attributes, (2) track source IDs, and (3) calculate confidence scores
+    gdf1[f"{attr}_merged"] = mapping.groupby("building_id_1").apply(lambda g: agg_func(g, attr))
     gdf1[f"{attr}_source_ids"] = mapping.groupby("building_id_1")["building_id_2"].apply(list)
-    gdf1[f"{attr}_mapped"] = mapping.groupby("building_id_1").apply(lambda g: agg_func(g, attr))
-    gdf1[f"{attr}_confidence_iou"] = mapping.groupby("building_id_1").apply(iou)
-    gdf1[f"{attr}_confidence_ioa"] = mapping.groupby("building_id_1").apply(ioa)
+    gdf1[f"{attr}_unit_ioa"] = mapping.groupby("building_id_1").apply(ioa_group)
+    gdf1[f"{attr}_unit_confidence"] = mapping.groupby("building_id_1").apply(iou_group)
+    gdf1[f"{attr}_joint_confidence"] = aggregated_matches[["ids_1", "iou"]].explode("ids_1").set_index("ids_1")["iou"]
 
     return gdf1
 
@@ -302,6 +307,7 @@ def _most_frequent_category(s: pd.Series) -> str:
     most_frequent = value_counts[value_counts == max_count].index[0]
 
     return most_frequent
+
 
 def _block_iou(
     gdf1: gpd.GeoDataFrame,

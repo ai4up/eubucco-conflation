@@ -53,9 +53,9 @@ def conflate(
             reference_data["filled_type"] = reference_data["filled_type"].replace({True: name})
             reference_data["filled_residential_type"] = reference_data["filled_residential_type"].replace({True: name})
 
-        if mapping and 'height_mapped' in reference_data.columns:
+        if mapping and 'height_merged' in reference_data.columns:
             attr = ["height", "age", "type", "residential_type"]
-            suffixes = ["source_ids", "mapped", "confidence_iou", "confidence_ioa"]
+            suffixes = ["source_ids", "merged", "confidence_iou", "confidence_ioa"]
             reference_data = reference_data.rename(columns={f"{attr}_{suffix}": f"{attr}_{suffix}_{name}" for attr, suffix in itertools.product(attr, suffixes)})
             reference_data = reference_data.rename(columns={"matching_confidence": f"matching_confidence_{name}"})
 
@@ -150,11 +150,11 @@ def conflate_pair(
     n_added_buildings = len(conflated_buildings) - len(gdf1)
     print(f"Added buildings during conflation stage: +{n_added_buildings} ({n_added_buildings / len(gdf1):.2%})")
 
-    if attribute_mapping and 'height_mapped' in conflated_buildings.columns:
-        print(f"Added height information during conflation stage: +{conflated_buildings['height_mapped'].notna().sum()} ({conflated_buildings['height_mapped'].notna().mean():.2%})")
-        print(f"Added age information during conflation stage: +{conflated_buildings['age_mapped'].notna().sum()} ({conflated_buildings['age_mapped'].notna().mean():.2%})")
-        print(f"Added type information during conflation stage: +{conflated_buildings['type_mapped'].notna().sum()} ({conflated_buildings['type_mapped'].notna().mean():.2%})")
-        print(f"Added residential type information during conflation stage: +{conflated_buildings['residential_type_mapped'].notna().sum()} ({conflated_buildings['residential_type_mapped'].notna().mean():.2%})")
+    if attribute_mapping and 'height_merged' in conflated_buildings.columns:
+        print(f"Added height information during conflation stage: +{conflated_buildings['height_merged'].notna().sum()} ({conflated_buildings['height_merged'].notna().mean():.2%})")
+        print(f"Added age information during conflation stage: +{conflated_buildings['age_merged'].notna().sum()} ({conflated_buildings['age_merged'].notna().mean():.2%})")
+        print(f"Added type information during conflation stage: +{conflated_buildings['type_merged'].notna().sum()} ({conflated_buildings['type_merged'].notna().mean():.2%})")
+        print(f"Added residential type information during conflation stage: +{conflated_buildings['residential_type_merged'].notna().sum()} ({conflated_buildings['residential_type_merged'].notna().mean():.2%})")
 
     if attribute_mapping and 'filled_height' in conflated_buildings.columns:
         print(f"Added height information during conflation stage: +{conflated_buildings['filled_height'].eq(True).sum()} ({conflated_buildings['filled_height'].eq(True).mean():.2%})")

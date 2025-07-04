@@ -8,7 +8,7 @@ from scipy.spatial import KDTree
 from shapely.geometry import Polygon, MultiPolygon
 
 from shapely.affinity import translate
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 
 def generate_blocks(
@@ -146,6 +146,58 @@ def iou(geoms1: gpd.GeoSeries, geoms2: gpd.GeoSeries) -> pd.Series:
     iou = iou.fillna(0)
 
     return iou
+
+
+def dissolve_geometries_of_m_n_matches(
+    matching_pairs: pd.DataFrame,
+    gdf1: gpd.GeoDataFrame,
+    gdf2: gpd.GeoDataFrame
+) -> gpd.GeoDataFrame:
+    """
+    Identify connected components and dissolve their geometries to aggregate matching pairs into m:n matches.
+    """
+    components = _aggregate_to_m_n_matches(matching_pairs)
+    rows = []
+    for ids_1, ids_2 in components:
+        geoms_1 = gdf1.loc[list(ids_1), 'geometry']
+        geoms_2 = gdf2.loc[list(ids_2), 'geometry']
+
+        rows.append({
+            "component_id": uuid.uuid4().hex[:16],
+            "ids_1": ids_1,
+            "ids_2": ids_2,
+            "geometry_1": geoms_1.union_all(),
+            "geometry_2": geoms_2.union_all(),
+        })
+
+    gdf = gpd.GeoDataFrame(rows)
+    gdf["geometry_1"] = gpd.GeoSeries(gdf["geometry_1"], crs=gdf1.crs)
+    gdf["geometry_2"] = gpd.GeoSeries(gdf["geometry_2"], crs=gdf2.crs)
+
+    return gdf
+
+
+def _aggregate_to_m_n_matches(
+    matching_pairs: pd.DataFrame,
+    col1: str = "building_id_1",
+    col2: str = "building_id_2"
+) -> List[Tuple[set, set]]:
+    """
+    Aggregate matching pairs into m:n matches by identifying connected components in a bipartite graph.
+    """
+    G = nx.Graph()
+    G.add_edges_from(zip(matching_pairs[col1], matching_pairs[col2]))
+
+    components = []
+    for nodes in nx.connected_components(G):
+        sub_df = matching_pairs[
+            matching_pairs[col1].isin(nodes) | matching_pairs[col2].isin(nodes)
+        ]
+        set_A = set(sub_df[col1])
+        set_B = set(sub_df[col2])
+        components.append((set_A, set_B))
+
+    return components
 
 
 def _simplified_rectangular_buffer(geoms: gpd.GeoSeries, size: float) -> gpd.GeoSeries:
