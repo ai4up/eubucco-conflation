@@ -14,8 +14,8 @@ def block_wise_merge(
     """
     Merges existing and new buildings at the block level based on matching results.
     """
-    existing_blocks = generate_blocks(existing_buildings, tolerance=0.25)
-    new_blocks = generate_blocks(new_buildings, tolerance=0.25)
+    existing_blocks = generate_blocks(existing_buildings.copy(), tolerance=0.25)
+    new_blocks = generate_blocks(new_buildings.copy(), tolerance=0.25)
     existing_block_mapping = blocks_id_mapping(existing_blocks)
     new_block_mapping = blocks_id_mapping(new_blocks)
 
