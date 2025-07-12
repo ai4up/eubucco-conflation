@@ -1,4 +1,5 @@
 import uuid
+from typing import Optional, Tuple, List
 
 import numpy as np
 import pandas as pd
@@ -6,9 +7,18 @@ import geopandas as gpd
 import networkx as nx
 from scipy.spatial import KDTree
 from shapely.geometry import Polygon, MultiPolygon
-
 from shapely.affinity import translate
-from typing import Optional, Tuple, List
+
+
+def overlapping(
+    gdf1: gpd.GeoDataFrame, gdf2: gpd.GeoDataFrame
+) -> Tuple[pd.Index, pd.Index]:
+    """
+    Find all overlapping building pairs between two GeoDataFrames.
+    """
+    idx2, idx1 = gdf1.sindex.query(gdf2.geometry, predicate="intersects")
+
+    return gdf1.index[idx1], gdf2.index[idx2]
 
 
 def generate_blocks(
@@ -26,9 +36,7 @@ def generate_blocks(
         buildings.geometry = _simplified_rectangular_buffer(buildings, tolerance)
 
     # Determine touching buildings
-    left_idx, right_idx = buildings.sindex.query(buildings.geometry, predicate="intersects")
-    left_idx = buildings.index[left_idx]
-    right_idx = buildings.index[right_idx]
+    left_idx, right_idx = overlapping(buildings, buildings)
 
     # Exclude intersections with itself
     mask = left_idx != right_idx
@@ -137,6 +145,14 @@ def buffer_area(geoms: gpd.GeoSeries, size: float = 1) -> pd.Series:
     return geoms.buffer(size, join_style="mitre").difference(geoms).area
 
 
+def ioa(geoms1: gpd.GeoSeries, geoms2: gpd.GeoSeries) -> pd.Series:
+    """
+    Calculate the Two-Way Area Overlap (TWAO) between building pairs.
+    Also referred to as symmetrical Intersection over Area (IoA).
+    """
+    return geoms1.intersection(geoms2, align=False).area / np.minimum(geoms1.area, geoms2.area).values
+
+
 def iou(geoms1: gpd.GeoSeries, geoms2: gpd.GeoSeries) -> pd.Series:
     """
     Compute the pairwise Intersection over Union (IoU) for two sets of geometries."""
@@ -146,6 +162,34 @@ def iou(geoms1: gpd.GeoSeries, geoms2: gpd.GeoSeries) -> pd.Series:
     iou = iou.fillna(0)
 
     return iou
+
+
+def deduplicate(gdf: gpd.GeoDataFrame, tolerance: float) -> gpd.GeoDataFrame:
+    """
+    Remove buildings that significantly overlap with other buildings in the same dataset,
+    retaining only the larger building.
+    """
+    idx1, idx2 = overlapping(gdf, gdf)
+
+    # Exclude intersections with itself
+    mask = idx1 != idx2
+    idx1 = idx1[mask]
+    idx2 = idx2[mask]
+
+    # Filter overlapping buildings
+    overlap = ioa(gdf.loc[idx1].geometry.reset_index(), gdf.loc[idx2].geometry.reset_index())
+    mask = overlap > tolerance
+    idx1 = idx1[mask]
+    idx2 = idx2[mask]
+
+    # Keep only the larger building
+    smaller = gdf.loc[idx1].area.values < gdf.loc[idx2].area.values
+    idx = np.where(smaller, idx1, idx2)
+    gdf = gdf.drop(idx)
+
+    print(f"{len(idx)} buildings removing with an overlap of more than {tolerance:.2f} during deduplication.")
+
+    return gdf
 
 
 def dissolve_geometries_of_m_n_matches(

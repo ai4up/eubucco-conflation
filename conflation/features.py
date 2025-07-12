@@ -5,26 +5,21 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 
-from conflation.geoutil import align_centroids, buffer_area
+from conflation.geoutil import align_centroids, buffer_area, ioa, iou
 
 
 def compute_ioa(geoms1: gpd.GeoSeries, geoms2: gpd.GeoSeries) -> pd.Series:
     """
     Calculate the Two-Way Area Overlap (TWAO) between building pairs. Also referred to as symmetrical Intersection over Area (IoA).
     """
-    return geoms1.intersection(geoms2).area / np.minimum(geoms1.area, geoms2.area)
+    return ioa(geoms1, geoms2)
 
 
 def compute_iou(geoms1: gpd.GeoSeries, geoms2: gpd.GeoSeries) -> pd.Series:
     """
     Compute the Intersection over Union (IoU) between pairs of geometries.
     """
-    intersection = geoms1.intersection(geoms2).area
-    union = geoms1.union(geoms2).area
-    iou = intersection / union
-    iou = iou.fillna(0)  # mitigate devision by zero
-
-    return iou
+    return iou(geoms1, geoms2)
 
 
 def compute_aligned_iou(geoms1: gpd.GeoSeries, geoms2: gpd.GeoSeries) -> pd.Series:
@@ -32,7 +27,7 @@ def compute_aligned_iou(geoms1: gpd.GeoSeries, geoms2: gpd.GeoSeries) -> pd.Seri
     Compute the Intersection over Union (IoU) after aligning the centroids of geometry pairs.
     """
     aligned_geoms2 = gpd.GeoSeries([align_centroids(g1, g2) for g1, g2 in zip(geoms1, geoms2)], index=geoms1.index, crs=geoms1.crs)
-    aligned_iou = compute_iou(geoms1, aligned_geoms2)
+    aligned_iou = iou(geoms1, aligned_geoms2)
 
     return aligned_iou
 
@@ -42,7 +37,7 @@ def compute_aligned_ioa(geoms1: gpd.GeoSeries, geoms2: gpd.GeoSeries) -> pd.Seri
     Compute the Two-Way Area Overlap (TWAO) after aligning the centroids of geometry pairs.
     """
     aligned_geoms2 = gpd.GeoSeries([align_centroids(g1, g2) for g1, g2 in zip(geoms1, geoms2)], index=geoms1.index, crs=geoms1.crs)
-    aligned_ioa = compute_ioa(geoms1, aligned_geoms2)
+    aligned_ioa = ioa(geoms1, aligned_geoms2)
 
     return aligned_ioa
 

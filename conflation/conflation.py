@@ -9,6 +9,7 @@ from conflation.alignment import correct_local_shift
 from conflation.feateng import calculate_matching_features
 from conflation.prediction import predict_match
 from conflation.merge import block_wise_merge
+from conflation.geoutil import deduplicate
 
 
 def conflate(
@@ -33,6 +34,7 @@ def conflate(
 
     ref_index, reference_data = _get_first_existing_parquet(region_id, data_dirs_input)
     reference_data["dataset"] = datasets[ref_index]
+    reference_data = deduplicate(reference_data, tolerance=0.25)
 
     for data_dir, matching_dir, mapping, name in zip(data_dirs_input[ref_index+1:], data_dirs_matching[ref_index:], attribute_mapping[ref_index:], datasets[ref_index+1:]):
         new_data_path = Path(data_dir, f"{region_id}.parquet")
@@ -45,6 +47,7 @@ def conflate(
 
         new_data = gpd.read_parquet(new_data_path).set_index("id")
         new_data["dataset"] = name
+        new_data = deduplicate(new_data, tolerance=0.25)
         reference_data = conflate_pair(reference_data, new_data, h3_res, model_path, matching_path, mapping)
 
         if mapping and 'filled_height' in reference_data.columns:
@@ -99,12 +102,16 @@ def conflate_gov_osm_msft(
     osm = gpd.read_parquet(osm_path).set_index("id")
     msft = gpd.read_parquet(msft_path).set_index("id")
 
+    osm = deduplicate(osm, tolerance=0.25)
+    msft = deduplicate(msft, tolerance=0.25)
+
     osm["dataset"] = "osm"
     msft["dataset"] = "msft"
 
     if gov_path.exists():
         gov = gpd.read_parquet(gov_path).set_index("id")
         gov["dataset"] = "gov"
+        gov = deduplicate(gov, tolerance=0.25)
 
         print(f"Conflating Gov, OSM and MSFT for {region_id}.")
         conflated = conflate_pair(gov, osm, h3_res, model_path, matching_path_osm, attribute_mapping=True)
