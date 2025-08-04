@@ -1,17 +1,14 @@
 [project]
 name = "eubucco-conflation"
 version = "0.1.0"
-description = "Add your description here"
+description = "Conflation pipeline for EUBUCCO building dataset."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "folium>=0.19.4",
+    "geo-matcher",
     "geopandas>=1.0.1",
     "h3>=4.2.2",
-    "ipywidgets>=8.1.5",
-    "lightgbm>=4.6.0",
-    "mapclassify>=2.8.1",
-    "matplotlib>=3.9.4",
     "momepy>=0.9.0",
     "networkx>=3.2.1",
     "numba>=0.61.0",
@@ -20,11 +17,25 @@ dependencies = [
     "pyarrow>=19.0.1",
     "scikit-learn>=1.6.1",
     "scipy>=1.13.1",
-    "shap>=0.46.0",
     "xgboost>=2.1.4",
 ]
 
 [dependency-groups]
 dev = [
     "ipykernel>=6.29.5",
+    "ipywidgets>=8.1.7",
+    "lightgbm>=4.6.0",
+    "mapclassify>=2.8.1",
+    "matplotlib>=3.10.0",
+    "matplotlib-venn>=1.1.2",
+    "memory-profiler>=0.61.0",
+    "mlxtend>=0.23.4",
+    "optuna>=4.4.0",
+    "pytorch-tabnet>=4.1.0",
+    "seaborn>=0.13.2",
+    "shap>=0.48.0",
+    "umap-learn>=0.5.9.post2",
 ]
+
+[tool.uv.sources]
+geo-matcher = { git = "https://github.com/ai4up/geo-matcher" }
