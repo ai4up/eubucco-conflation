@@ -1,8 +1,7 @@
 import pandas as pd
 import geopandas as gpd
 
-from geo_matcher.dataset import create_candidate_pairs_dataset
-from geo_matcher.candidate_pairs import CandidatePairs
+from geo_matcher import spatial
 
 
 sample_nuts_ids = [
@@ -31,39 +30,32 @@ neighborhoods = [
     '89194ed680fffff', '891f8c3482bffff' # missing neighborhoods for ['RO114', 'IE051', 'BG325'] due to missing data 
 ]
 
-for dataset_a, dataset_b in [('gov', 'osm'), ('gov', 'msft'), ('osm', 'msft')]:
-    datasets = []
+for dataset in ['gov', 'osm', 'msft']:
+    data = []
     for nuts_id in sample_nuts_ids:
 
-        print(f'Processing: {dataset_a} <- {dataset_b} - {len(datasets)+1}/{len(sample_nuts_ids)} - {nuts_id}')
-        filepath_a = f'/p/projects/eubucco/data/3-attrib-cleaning-v1-{dataset_a}/{nuts_id}.parquet'
-        filepath_b = f'/p/projects/eubucco/data/3-attrib-cleaning-v1-{dataset_b}/{nuts_id}.parquet'
+        filepath = f'/p/projects/eubucco/data/3-attrib-cleaning-v1-{dataset}/{nuts_id}.parquet'
 
         try:
-            gdf_a = gpd.read_parquet(filepath_a, columns=['id', 'geometry'])
-            gdf_b = gpd.read_parquet(filepath_b, columns=['id', 'geometry'])
+            if dataset != 'msft':
+                gdf = gpd.read_parquet(filepath, columns=['id', 'height', 'age', 'type', 'residential_type', 'geometry'])
+            else:
+                gdf = gpd.read_parquet(filepath)
+                gdf["residential_type"] = pd.NA
+                gdf["height"] = gdf["height_source"]
+                gdf = gdf[['id', 'height', 'age', 'type', 'residential_type', 'geometry']]
+
 
         except FileNotFoundError:
-            print(f'File not found for {dataset_a} and {dataset_b} in {nuts_id}')
+            print(f'File not found for {dataset} in {nuts_id}')
             continue
 
-        gdf_a = gdf_a.reset_index(drop=True).add_prefix(f'{nuts_id}_{dataset_a}_', axis=0)
-        gdf_b = gdf_b.reset_index(drop=True).add_prefix(f'{nuts_id}_{dataset_b}_', axis=0)
+        gdf = gdf.reset_index(drop=True).add_prefix(f'{nuts_id}_{dataset}_', axis=0)
+        gdf["neighborhood"] = spatial.h3_index(gdf, 9)
+        gdf = gdf[gdf["neighborhood"].isin(neighborhoods)]
+        df = gdf.drop(columns=['geometry', 'neighborhood'])
 
-        cp = create_candidate_pairs_dataset(
-            gdf1=gdf_a,
-            gdf2=gdf_b,
-            neighborhoods=neighborhoods,
-            h3_res=9,
-        )
+        data.append(df)
 
-        datasets.append(cp)
-
-    cp = CandidatePairs(
-            dataset_a=pd.concat([cp.dataset_a for cp in datasets]),
-            dataset_b=pd.concat([cp.dataset_b for cp in datasets]),
-            pairs=pd.concat([cp.pairs for cp in datasets], ignore_index=True),
-        )
-    cp.save(
-            f'/p/projects/eubucco/data/conflation-training-data/neighborhood-candidate-pairs-{dataset_a}-{dataset_b}.pickle'
-        )
+    df = pd.concat(data, ignore_index=True)
+    df.to_parquet(f'/p/projects/eubucco/data/conflation-training-data/candidate-attributes-{dataset}.parquet', index=False)
