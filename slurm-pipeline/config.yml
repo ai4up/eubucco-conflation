@@ -1,0 +1,29 @@
+jobs:
+  - name: conflate
+    script: /p/projects/eubucco/eubucco-conflation/slurm-pipeline/conflate.py
+    param_generator_file: /p/projects/eubucco/eubucco-conflation/slurm-pipeline/params-conflation.yml
+    log_dir: /p/projects/eubucco/logs/v1_0-db/conflation
+    resources:
+      cpus: 8
+      mem: 60000
+      time: "1-00:00:00"
+    special_cases:
+      - name: large-regions
+        files:
+          path: "/p/projects/eubucco/data/3-attrib-cleaning-v1-osm/{{region_id}}.parquet"
+          size_min: 100000000
+        resources:
+          mem: 100000
+
+properties:
+  conda_env: eubucco-features
+  account: eubucco
+  log_level: INFO
+  failure_threshold: 1
+  failure_threshold_activation: 9999999
+  exp_backoff_factor: 4
+  max_retries: 3
+  poll_interval: 30
+  slack:
+    channel: "#test-slurm-bot"
+    token: <SLACK_TOKEN>
