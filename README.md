@@ -77,3 +77,23 @@ conflate(
 - **Attribute merging**: Intelligently combines building attributes from multiple sources (see `conflation/merging.py`)
 - **Scalable processing**: Slurm-based HPC pipeline for large-scale processing (see `slurm-pipeline/`)
 - **Quality assessment**: Comprehensive evaluation metrics and validation (see `matching-assessment.ipynb`)
+
+
+## Reproducing AAAI analysis
+To reproduce the AAAI analysis results, run the Jupyter notebook `matching-assessment.ipynb`. All required data is provided [^1][^2]:
+```
+├── data/
+│   ├── aaai/
+│   |   ├── buildings-{gov,osm,msft}.parquet     # Sample of Governmental, OSM, and Microsoft buildings used in evaluation (GeoParquet)
+│   |   |── matching-pairs.parquet               # Candidate pairs w/ ground-truth labels for Gov-OSM, Gov-Msft, OSM-Msft matching
+│   |   └── matching-pairs-eval.parquet          # Candidate pairs including calculated features, predictions, and threshold metrics
+│   |   └── conflation-nuts-level-metrics.gpkg   # Regional summary stats of Europe-wide conflation
+|   |
+│   └── train/
+│       └── xgboost-model.json                   # Parameters of trained XGBoost model
+
+```
+
+[^1]: Data of Europe-wide conflation assessments could not be provided due to data size limitations (>500GB). Only a summarizing stats file is provided (see `conflation-nuts-level-metrics.gpkg`).
+
+[^2]: Model training data could not be provided due to data size limitations (>2.5GB), however, training labels are provided.
