@@ -16,7 +16,7 @@ def conflate(
     datasets: list[str],
     region_id: str,
     data_dirs_input: list[str],
-    data_dirs_matching: str,
+    data_dirs_matching: list[str],
     data_dir_results: str,
     attribute_mapping: list[bool],
     h3_res: int,
