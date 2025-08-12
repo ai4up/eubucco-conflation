@@ -6,10 +6,8 @@ from eubucco_conflator.state import State
 
 if __name__ == '__main__':
 	
-	file_path = '/Users/felix/code/overture/data/matching/labels_1M/edge_case_set_incl_raw_data_tag_sample.pq'
-
 	# Initialize the state with your custom input file
-	State.init(file_path, logger=print)
+	State.init('data/places-sample.parquet', logger=print)
 	app.start(display_cols=["name",
 							"address",
 							"house_number",
@@ -17,3 +15,4 @@ if __name__ == '__main__':
 							"normalized_phone",
 							"raw_websites",
 							])
+	
