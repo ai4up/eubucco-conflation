@@ -103,7 +103,7 @@ def get_nearest_neighbors(
     tree = KDTree(coordinates2)
 
     # Find 5 nearest neighbors for each point
-    distances, indices = tree.query(coordinates1, k=k+1)
+    distances, indices = tree.query(coordinates1, k=k)
 
     return indices, distances
 
