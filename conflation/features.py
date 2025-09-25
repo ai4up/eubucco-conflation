@@ -95,4 +95,4 @@ def compute_area_intersected(
         intersection_area / geoms1.loc[intersection_area.index].area
     )
 
-    return rel_intersection_area
+    return rel_intersection_area.reindex(geoms1.index, fill_value=0.0)
