@@ -3,7 +3,7 @@ name = "eubucco-conflation"
 version = "0.1.0"
 description = "Conflation pipeline for EUBUCCO building dataset."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "folium>=0.19.4",
     "geo-matcher",
@@ -22,9 +22,11 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "altair>=5.5.0",
     "ipykernel>=6.29.5",
     "ipywidgets>=8.1.7",
     "lightgbm>=4.6.0",
+    "line-profiler>=5.0.0",
     "mapclassify>=2.8.1",
     "matplotlib>=3.10.0",
     "matplotlib-venn>=1.1.2",
