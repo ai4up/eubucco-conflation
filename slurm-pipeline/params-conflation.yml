@@ -9,7 +9,7 @@ data_dir_results:
 attribute_mapping:
   - [true, true]
 model_path:
-  - /p/projects/eubucco/data/models/xgboost-model-matching.json
+  - /p/projects/eubucco/data/models/xgboost-model-matching-eubucco-v1.json
 h3_res:
   - 9
 db_version:

@@ -9,7 +9,7 @@ def test_conflation_e2e():
     Test the end-to-end conflation process.
     """
     region_id = 'ES630-88391aa985fffff'
-    model_path = Path('data', 'train', 'xgboost-model.json')
+    model_path = Path('data', 'train', 'xgboost-model-eubucco-v1.json')
     test_dir = Path('data', 'conflation-test-regions')
     gov_dir = test_dir / 'gov'
     osm_dir = test_dir / 'osm'
