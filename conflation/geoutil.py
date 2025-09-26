@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 import networkx as nx
+import h3
 from scipy.spatial import KDTree
 from shapely.geometry import Polygon, MultiPolygon
 from shapely.affinity import translate
@@ -88,6 +89,19 @@ def preprocess_geometry(geoms: gpd.GeoSeries) -> gpd.GeoSeries:
     geoms = geoms.apply(extract_largest_polygon_from_multipolygon)
 
     return geoms
+
+
+def h3_index(gdf: gpd.GeoDataFrame, res: int) -> List[str]:
+    """
+    Generate H3 indexes for the geometries in a GeoDataFrame.
+    """
+    # H3 operations require a lat/lon point geometry
+    centroids = gdf.centroid.to_crs("EPSG:4326")
+    lngs = centroids.x
+    lats = centroids.y
+    h3_idx = [h3.latlng_to_cell(lat, lng, res) for lat, lng in zip(lats, lngs)]
+
+    return h3_idx
 
 
 def get_nearest_neighbors(

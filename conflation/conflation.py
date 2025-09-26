@@ -4,7 +4,7 @@ import itertools
 import geopandas as gpd
 import pandas as pd
 
-from geo_matcher.dataset import create_candidate_pairs_dataset
+from conflation.pairs import determine_candidate_pairs
 from conflation.alignment import correct_local_shift
 from conflation.feateng import calculate_matching_features
 from conflation.prediction import predict_match
@@ -139,8 +139,8 @@ def conflate_pair(
         print("Loading matching results. Skipping (2)-(4).")
         pairs_w_pred = pd.read_parquet(matching_results_path)
     else:
-        print("(2) Creating candidate pairs...")
-        pairs = create_candidate_pairs_dataset(gdf1, gdf2).pairs
+        print("(2) Determining candidate pairs...")
+        pairs = determine_candidate_pairs(gdf1, gdf2)
         print(f"Number of candidate pairs: {len(pairs)}")
 
         print("(3) Calculating matching features...")

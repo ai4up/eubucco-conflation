@@ -6,7 +6,7 @@ import geopandas as gpd
 from scipy.spatial import KDTree
 from shapely.affinity import translate
 
-from geo_matcher import spatial
+from conflation.geoutil import h3_index
 
 
 def spatially_align_building_datasets(
@@ -86,7 +86,7 @@ def correct_local_shift(
     new_buildings.loc[new_buildings.index[new_idxs], "dy"] = existing_y[existing_idxs] - new_y[new_idxs]
 
     # Determine neighborhoods
-    new_buildings["neighborhood"] = spatial.h3_index(new_buildings, h3_res)
+    new_buildings["neighborhood"] = h3_index(new_buildings, h3_res)
 
     # Count matched buildings per neighborhood
     matched_buildings = new_buildings.iloc[new_idxs].copy()
