@@ -2,7 +2,7 @@
 
 A machine learning pipeline for conflating building datasets from multiple sources (Governmental, OpenStreetMap, Microsoft) to create a unified European building database.
 
-![](manuscript/pipeline.png)
+![](manuscript/aaai/pipeline.png)
 
 
 ## Local Setup
