@@ -58,9 +58,9 @@ def conflate(
 
         if mapping and 'height_merged' in reference_data.columns:
             attr = ["height", "age", "type", "residential_type"]
-            suffixes = ["source_ids", "merged", "confidence_iou", "confidence_ioa"]
-            reference_data = reference_data.rename(columns={f"{attr}_{suffix}": f"{attr}_{suffix}_{name}" for attr, suffix in itertools.product(attr, suffixes)})
-            reference_data = reference_data.rename(columns={"matching_confidence": f"matching_confidence_{name}"})
+            suffixes = ["source_ids", "merged", "confidence", "unit_iou", "unit_ioa"]
+            reference_data = reference_data.rename(columns={f"{attr}_{suffix}": f"{name}_{attr}_{suffix}" for attr, suffix in itertools.product(attr, suffixes)})
+            reference_data = reference_data.rename(columns={"matching_confidence": f"{name}_matching_confidence"})
 
     reference_data = _generate_unique_id(reference_data, db_version)
     reference_data.to_parquet(results_path)

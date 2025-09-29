@@ -277,7 +277,7 @@ def _merge_attribute(
     mapping = mapping[~mapping[attr].isna()]
 
     if mapping.empty:
-        for suffix in ["source_ids", "merged", "confidence_iou", "confidence_ioa"]:
+        for suffix in ["source_ids", "merged", "confidence", "unit_ioa", "unit_iou"]:
             gdf1[f"{attr}_{suffix}"] = pd.NA
         return gdf1
 
@@ -291,9 +291,9 @@ def _merge_attribute(
     # (1) Aggregate attributes, (2) track source IDs, and (3) calculate confidence scores
     gdf1[f"{attr}_merged"] = mapping.groupby("building_id_1").apply(lambda g: agg_func(g, attr))
     gdf1[f"{attr}_source_ids"] = mapping.groupby("building_id_1")["building_id_2"].apply(list)
+    gdf1[f"{attr}_confidence"] = aggregated_matches[["ids_1", "iou"]].explode("ids_1").set_index("ids_1")["iou"]
     gdf1[f"{attr}_unit_ioa"] = mapping.groupby("building_id_1").apply(ioa_group)
-    gdf1[f"{attr}_unit_confidence"] = mapping.groupby("building_id_1").apply(iou_group)
-    gdf1[f"{attr}_joint_confidence"] = aggregated_matches[["ids_1", "iou"]].explode("ids_1").set_index("ids_1")["iou"]
+    gdf1[f"{attr}_unit_iou"] = mapping.groupby("building_id_1").apply(iou_group)
 
     return gdf1
 
