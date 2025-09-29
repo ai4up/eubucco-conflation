@@ -85,7 +85,7 @@ def preprocess_geometry(geoms: gpd.GeoSeries) -> gpd.GeoSeries:
             return max(geom.geoms, key=lambda a: a.area)
         return geom
 
-    geoms = geoms.buffer(0).simplify(0.5)
+    geoms = geoms.buffer(0).simplify(0.5).make_valid()
     geoms = geoms.apply(extract_largest_polygon_from_multipolygon)
 
     return geoms
