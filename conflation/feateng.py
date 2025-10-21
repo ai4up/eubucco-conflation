@@ -47,6 +47,7 @@ def calculate_matching_features(
     logger.info("Determining blocks...")
     existing_blocks = generate_blocks(existing_buildings.copy(), tolerance=0.25)
     new_blocks = generate_blocks(new_buildings.copy(), tolerance=0.25)
+
     candidate_pairs["block_id_existing"] = candidate_pairs["id_existing"].map(blocks_id_mapping(existing_blocks))
     candidate_pairs["block_id_new"] = candidate_pairs["id_new"].map(blocks_id_mapping(new_blocks))
     candidate_pairs["block_geometry_existing"] = candidate_pairs["block_id_existing"].map(existing_blocks.geometry)

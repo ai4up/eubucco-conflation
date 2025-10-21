@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Union
 
 import numpy as np
 import pandas as pd
@@ -24,7 +24,7 @@ def overlapping(
 
 def generate_blocks(
     buildings: gpd.GeoDataFrame, tolerance: Optional[float] = None
-) -> gpd.GeoDataFrame:
+) -> Union[gpd.GeoDataFrame, pd.DataFrame]:
     """
     Generate blocks from building footprints by grouping touching buildings.
     """
@@ -45,7 +45,6 @@ def generate_blocks(
     right_idx = right_idx[mask]
 
     graph = nx.Graph()
-    graph.add_nodes_from(buildings.index)
     graph.add_edges_from(zip(left_idx, right_idx))
     connected_components = list(nx.connected_components(graph))
 
@@ -60,9 +59,15 @@ def generate_blocks(
             "size": len(component),
         })
 
-    blocks_gdf = gpd.GeoDataFrame(blocks, geometry="geometry", crs=buildings.crs).set_index("block_id")
-    blocks_gdf.geometry = _simplified_rectangular_buffer(blocks_gdf, 0.01)  # ensure all geometries are Polygons and valid
+    if blocks:
+        blocks_gdf = gpd.GeoDataFrame(blocks, geometry="geometry", crs=buildings.crs).set_index("block_id")
+        blocks_gdf.geometry = _simplified_rectangular_buffer(blocks_gdf, 0.01)  # ensure all geometries are Polygons and valid
+    else:
+        blocks_gdf = gpd.GeoDataFrame(columns=["geometry", "building_ids", "block_id", "size"], crs=buildings.crs).set_index("block_id")
+
     print(f"Generated {len(blocks_gdf)} blocks with on average {blocks_gdf['size'].mean():.1f} buildings.")
+
+    blocks_gdf = _add_standalone_buildings_to_blocks(blocks_gdf, buildings)
 
     return blocks_gdf
 
@@ -263,3 +268,22 @@ def _simplified_rectangular_buffer(geoms: gpd.GeoSeries, size: float) -> gpd.Geo
     Create a simplified rectangular buffer around each geometry.
     """
     return geoms.simplify(0.1).buffer(size, join_style="mitre")
+
+
+def _add_standalone_buildings_to_blocks(
+    blocks: gpd.GeoDataFrame,
+    buildings: gpd.GeoDataFrame
+) -> gpd.GeoDataFrame:
+    """
+    Add standalone buildings (not part of any block) as individual blocks.
+    """
+    singles = buildings[~buildings.index.isin(blocks["building_ids"].explode())].copy()
+    if not singles.empty:
+        singles["size"] = 1
+        singles["block_id"] = [uuid.uuid4().hex[:16] for _ in range(len(singles))]
+        singles["building_ids"] = singles.index.map(lambda x: [x])
+        singles = singles.set_index("block_id")[["geometry", "building_ids", "size"]]
+
+        blocks = pd.concat([blocks, singles])
+
+    return blocks
