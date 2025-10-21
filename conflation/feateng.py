@@ -20,6 +20,7 @@ from conflation.geoutil import (
     generate_blocks,
     blocks_id_mapping,
     get_nearest_neighbors,
+    groupby_apply,
 )
 
 logging.basicConfig(
@@ -45,8 +46,8 @@ def calculate_matching_features(
     candidate_pairs["geometry_new"] = gpd.GeoSeries(candidate_pairs["geometry_new"], crs=new_buildings.crs)
 
     logger.info("Determining blocks...")
-    existing_blocks = generate_blocks(existing_buildings.copy(), tolerance=0.25)
-    new_blocks = generate_blocks(new_buildings.copy(), tolerance=0.25)
+    existing_blocks = groupby_apply(existing_buildings.copy(), "LAU_ID", generate_blocks, tolerance=0.25)
+    new_blocks = groupby_apply(new_buildings.copy(), "LAU_ID", generate_blocks, tolerance=0.25)
 
     candidate_pairs["block_id_existing"] = candidate_pairs["id_existing"].map(blocks_id_mapping(existing_blocks))
     candidate_pairs["block_id_new"] = candidate_pairs["id_new"].map(blocks_id_mapping(new_blocks))

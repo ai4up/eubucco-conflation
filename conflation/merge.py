@@ -2,7 +2,7 @@ import geopandas as gpd
 import pandas as pd
 import shapely
 
-from conflation.geoutil import generate_blocks, blocks_id_mapping, iou, dissolve_geometries_of_m_n_matches
+from conflation.geoutil import generate_blocks, blocks_id_mapping, iou, dissolve_geometries_of_m_n_matches, groupby_apply
 
 
 def block_wise_merge(
@@ -14,8 +14,8 @@ def block_wise_merge(
     """
     Merges existing and new buildings at the block level based on matching results.
     """
-    existing_blocks = generate_blocks(existing_buildings.copy(), tolerance=0.25)
-    new_blocks = generate_blocks(new_buildings.copy(), tolerance=0.25)
+    existing_blocks = groupby_apply(existing_buildings.copy(), "LAU_ID", generate_blocks, tolerance=0.25)
+    new_blocks = groupby_apply(new_buildings.copy(), "LAU_ID", generate_blocks, tolerance=0.25)
     existing_block_mapping = blocks_id_mapping(existing_blocks)
     new_block_mapping = blocks_id_mapping(new_blocks)
 

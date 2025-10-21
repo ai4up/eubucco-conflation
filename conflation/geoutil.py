@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional, Tuple, List, Union
+from typing import Optional, Tuple, List, Union, Callable
 
 import numpy as np
 import pandas as pd
@@ -238,6 +238,20 @@ def dissolve_geometries_of_m_n_matches(
     gdf["geometry_2"] = gpd.GeoSeries(gdf["geometry_2"], crs=gdf2.crs)
 
     return gdf
+
+
+def groupby_apply(gdf: gpd.GeoDataFrame, by: str, func: Callable[[gpd.GeoDataFrame], gpd.GeoDataFrame], *args, **kwargs) -> gpd.GeoDataFrame:
+    """
+    Apply func to each group, keeping geometry awareness.
+    """
+    results = []
+    for _, df in gdf.groupby(by):
+        sub = gpd.GeoDataFrame(df, geometry=gdf.geometry.name, crs=gdf.crs)
+        results.append(func(sub, *args, **kwargs))
+
+    out = pd.concat(results, ignore_index=False)
+
+    return gpd.GeoDataFrame(out, geometry=gdf.geometry.name, crs=gdf.crs)
 
 
 def _aggregate_to_m_n_matches(
