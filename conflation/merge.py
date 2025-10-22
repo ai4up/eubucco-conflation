@@ -219,7 +219,7 @@ def _merge_attributes_by_intersection(
 
     def most_dominant_category_by_area(group, column):
         """Choose building type with largest cumulative intersecting area"""
-        return group.groupby(column)["area_int"].sum().idxmax()
+        return group.groupby(column, observed=True)["area_int"].sum().idxmax()
 
     gdf1 = _merge_attribute(gdf1, gdf2, intersections_matching, "height", weighted_avg)
     gdf1 = _merge_attribute(gdf1, gdf2, intersections_matching, "age", weighted_avg)
