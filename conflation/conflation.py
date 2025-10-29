@@ -147,6 +147,7 @@ def conflate_pair(
     if matching_results_path.exists():
         logger.info("Loading matching results. Skipping (2)-(4).")
         pairs_w_pred = pd.read_parquet(matching_results_path)
+        pairs_w_pred = _load_wkb_geometries(pairs_w_pred, crs=gdf1.crs)
     else:
         logger.info("(2) Determining candidate pairs...")
         pairs = determine_candidate_pairs(gdf1, gdf2)
@@ -199,3 +200,13 @@ def _get_first_existing_parquet(region_id: str, data_dirs: list[str]) -> tuple[i
             return i, gdf
 
     return None, None
+
+
+def _load_wkb_geometries(df: pd.DataFrame, crs: str) -> gpd.GeoDataFrame:
+    gdf = gpd.GeoDataFrame(df)
+    gdf["geometry_existing"] = gpd.GeoSeries.from_wkb(gdf["geometry_existing"], crs=crs)
+    gdf["geometry_new"] = gpd.GeoSeries.from_wkb(gdf["geometry_new"], crs=crs)
+    gdf["block_geometry_existing"] = gpd.GeoSeries.from_wkb(gdf["block_geometry_existing"], crs=crs)
+    gdf["block_geometry_new"] = gpd.GeoSeries.from_wkb(gdf["block_geometry_new"], crs=crs)
+
+    return gdf
