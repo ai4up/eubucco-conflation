@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Union
 
@@ -7,6 +8,13 @@ from scipy.spatial import KDTree
 from shapely.affinity import translate
 
 from conflation.geoutil import h3_index
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+logger = logging.getLogger(__name__)
 
 
 def spatially_align_building_datasets(
@@ -24,7 +32,7 @@ def spatially_align_building_datasets(
     results_path = Path(data_dir_results, f"{nuts_region}.parquet")
 
     if results_path.exists():
-        print(f"Aligned data already exists for {nuts_region}, skipping alignment.")
+        logger.info(f"Aligned data already exists for {nuts_region}, skipping alignment.")
         return
 
     existing_buildings = gpd.read_parquet(existing_buildings_path)
@@ -97,7 +105,7 @@ def correct_local_shift(
     sufficient_coverage = (matched_counts >= 5) & (matched_counts / total_counts >= 0.10)
     valid_neighborhoods = sufficient_coverage[sufficient_coverage].index
 
-    print(f"Correcting misaligned for {len(valid_neighborhoods) / len(total_counts) * 100:.1f}% ")
+    logger.info(f"Correcting misaligned for {len(valid_neighborhoods) / len(total_counts) * 100:.1f}% ")
 
     # Filter matched buildings accordingly
     matched_buildings = matched_buildings[matched_buildings["neighborhood"].isin(valid_neighborhoods)]

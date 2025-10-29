@@ -1,3 +1,4 @@
+import logging
 import uuid
 from typing import Optional, Tuple, List, Union, Callable
 
@@ -9,6 +10,13 @@ import h3
 from scipy.spatial import KDTree
 from shapely.geometry import Polygon, MultiPolygon
 from shapely.affinity import translate
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+logger = logging.getLogger(__name__)
 
 
 def overlapping(
@@ -65,7 +73,7 @@ def generate_blocks(
     else:
         blocks_gdf = gpd.GeoDataFrame(columns=["geometry", "building_ids", "block_id", "size"], crs=buildings.crs).set_index("block_id")
 
-    print(f"Generated {len(blocks_gdf)} blocks with on average {blocks_gdf['size'].mean():.1f} buildings.")
+    logger.info(f"Generated {len(blocks_gdf)} blocks with on average {blocks_gdf['size'].mean():.1f} buildings.")
 
     blocks_gdf = _add_standalone_buildings_to_blocks(blocks_gdf, buildings)
 
@@ -228,7 +236,7 @@ def deduplicate(gdf: gpd.GeoDataFrame, tolerance: float) -> gpd.GeoDataFrame:
     idx = np.where(smaller, idx1, idx2)
     gdf = gdf.drop(idx)
 
-    print(f"{len(idx)} buildings removing with an overlap of more than {tolerance:.2f} during deduplication.")
+    logger.info(f"{len(idx)} buildings removing with an overlap of more than {tolerance:.2f} during deduplication.")
 
     return gdf
 

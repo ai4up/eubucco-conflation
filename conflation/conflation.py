@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 import itertools
 
 import geopandas as gpd
@@ -10,6 +11,14 @@ from conflation.feateng import calculate_matching_features
 from conflation.prediction import predict_match
 from conflation.merge import block_wise_merge
 from conflation.geoutil import deduplicate
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+logger = logging.getLogger(__name__)
 
 
 def conflate(
@@ -29,7 +38,7 @@ def conflate(
     results_path = data_dir_results / f"{region_id}.parquet"
 
     if results_path.exists():
-        print(f"Conflated data already exists for {region_id}, skipping.")
+        logger.info(f"Conflated data already exists for {region_id}, skipping.")
         return
 
     ref_index, reference_data = _get_first_existing_parquet(region_id, data_dirs_input)
@@ -42,7 +51,7 @@ def conflate(
         matching_path.parent.mkdir(parents=True, exist_ok=True)
 
         if not new_data_path.exists():
-            print(f"No data found for {region_id} in {data_dir}, skipping.")
+            logger.warning(f"No data found for {region_id} in {data_dir}, skipping.")
             continue
 
         new_data = gpd.read_parquet(new_data_path).set_index("id")
@@ -85,7 +94,7 @@ def conflate_gov_osm_msft(
     out_path = out_dir / f"{region_id}.parquet"
 
     if out_path.is_file():
-        print(f"Conflated data already exists for {region_id}.")
+        logger.info(f"Conflated data already exists for {region_id}.")
         return
 
     matching_dir_osm = (matching_dir / "osm")
@@ -113,11 +122,11 @@ def conflate_gov_osm_msft(
         gov["dataset"] = "gov"
         gov = deduplicate(gov, tolerance=0.25)
 
-        print(f"Conflating Gov, OSM and MSFT for {region_id}.")
+        logger.info(f"Conflating Gov, OSM and MSFT for {region_id}.")
         conflated = conflate_pair(gov, osm, h3_res, model_path, matching_path_osm, attribute_mapping=True)
         conflated = conflate_pair(conflated, msft, h3_res, model_path, matching_path_msft, attribute_mapping=False)
     else:
-        print(f"No government data found for {region_id}, conflating only OSM and MSFT.")
+        logger.info(f"No government data found for {region_id}, conflating only OSM and MSFT.")
         conflated = conflate_pair(osm, msft, h3_res, model_path, matching_path_msft, attribute_mapping=False)
 
     conflated = _generate_unique_id(conflated, db_version)
@@ -132,41 +141,41 @@ def conflate_pair(
     matching_results_path: Path,
     attribute_mapping: bool,
 ) -> gpd.GeoDataFrame:
-    print("(1) Spatially aligning datasets...")
+    logger.info("(1) Spatially aligning datasets...")
     gdf2["geometry"] = correct_local_shift(gdf1, gdf2.copy(), h3_res)
 
     if matching_results_path.exists():
-        print("Loading matching results. Skipping (2)-(4).")
+        logger.info("Loading matching results. Skipping (2)-(4).")
         pairs_w_pred = pd.read_parquet(matching_results_path)
     else:
-        print("(2) Determining candidate pairs...")
+        logger.info("(2) Determining candidate pairs...")
         pairs = determine_candidate_pairs(gdf1, gdf2)
-        print(f"Number of candidate pairs: {len(pairs)}")
+        logger.info(f"Number of candidate pairs: {len(pairs)}")
 
-        print("(3) Calculating matching features...")
+        logger.info("(3) Calculating matching features...")
         pairs_w_fts = calculate_matching_features(gdf1, gdf2, pairs)
 
-        print("(4) Estimating matching relationships...")
+        logger.info("(4) Estimating matching relationships...")
         pairs_w_pred = predict_match(model_path, pairs_w_fts)
         pairs_w_pred.to_parquet(matching_results_path, index=False)
-        print(f"Share of matching pairs: {pairs_w_pred['match'].mean():.2%}")
+        logger.info(f"Share of matching pairs: {pairs_w_pred['match'].mean():.2%}")
 
 
-    print("(5) Merging data...")
+    logger.info("(5) Merging data...")
     conflated_buildings = block_wise_merge(gdf1, gdf2, pairs_w_pred, attribute_mapping)
     n_added_buildings = len(conflated_buildings) - len(gdf1)
-    print(f"Added buildings during conflation stage: +{n_added_buildings} ({n_added_buildings / len(gdf1):.2%})")
+    logger.info(f"Added buildings during conflation stage: +{n_added_buildings} ({n_added_buildings / len(gdf1):.2%})")
 
     if attribute_mapping and 'height_merged' in conflated_buildings.columns:
-        print(f"Added height information during conflation stage: +{conflated_buildings['height_merged'].notna().sum()} ({conflated_buildings['height_merged'].notna().mean():.2%})")
-        print(f"Added age information during conflation stage: +{conflated_buildings['age_merged'].notna().sum()} ({conflated_buildings['age_merged'].notna().mean():.2%})")
-        print(f"Added type information during conflation stage: +{conflated_buildings['type_merged'].notna().sum()} ({conflated_buildings['type_merged'].notna().mean():.2%})")
-        print(f"Added residential type information during conflation stage: +{conflated_buildings['residential_type_merged'].notna().sum()} ({conflated_buildings['residential_type_merged'].notna().mean():.2%})")
+        logger.info(f"Added height information during conflation stage: +{conflated_buildings['height_merged'].notna().sum()} ({conflated_buildings['height_merged'].notna().mean():.2%})")
+        logger.info(f"Added age information during conflation stage: +{conflated_buildings['age_merged'].notna().sum()} ({conflated_buildings['age_merged'].notna().mean():.2%})")
+        logger.info(f"Added type information during conflation stage: +{conflated_buildings['type_merged'].notna().sum()} ({conflated_buildings['type_merged'].notna().mean():.2%})")
+        logger.info(f"Added residential type information during conflation stage: +{conflated_buildings['residential_type_merged'].notna().sum()} ({conflated_buildings['residential_type_merged'].notna().mean():.2%})")
 
     if attribute_mapping and 'filled_height' in conflated_buildings.columns:
-        print(f"Added height information during conflation stage: +{conflated_buildings['filled_height'].eq(True).sum()} ({conflated_buildings['filled_height'].eq(True).mean():.2%})")
-        print(f"Added age information during conflation stage: +{conflated_buildings['filled_age'].eq(True).sum()} ({conflated_buildings['filled_age'].eq(True).mean():.2%})")
-        print(f"Added type information during conflation stage: +{conflated_buildings['filled_type'].eq(True).sum()} ({conflated_buildings['filled_type'].eq(True).mean():.2%})")
+        logger.info(f"Added height information during conflation stage: +{conflated_buildings['filled_height'].eq(True).sum()} ({conflated_buildings['filled_height'].eq(True).mean():.2%})")
+        logger.info(f"Added age information during conflation stage: +{conflated_buildings['filled_age'].eq(True).sum()} ({conflated_buildings['filled_age'].eq(True).mean():.2%})")
+        logger.info(f"Added type information during conflation stage: +{conflated_buildings['filled_type'].eq(True).sum()} ({conflated_buildings['filled_type'].eq(True).mean():.2%})")
 
     return conflated_buildings
 
