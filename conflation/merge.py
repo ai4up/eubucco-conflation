@@ -2,7 +2,7 @@ import geopandas as gpd
 import pandas as pd
 import shapely
 
-from conflation.geoutil import generate_blocks, blocks_id_mapping, iou, dissolve_geometries_of_m_n_matches, groupby_apply
+from conflation.geoutil import generate_blocks, generate_blocks_from_ids, blocks_id_mapping, iou, dissolve_geometries_of_m_n_matches, groupby_apply
 
 
 def block_wise_merge(
@@ -14,13 +14,19 @@ def block_wise_merge(
     """
     Merges existing and new buildings at the block level based on matching results.
     """
-    existing_blocks = groupby_apply(existing_buildings.copy(), "LAU_ID", generate_blocks, tolerance=0.25)
-    new_blocks = groupby_apply(new_buildings.copy(), "LAU_ID", generate_blocks, tolerance=0.25)
+    if "block_id_existing" in candidate_pairs.columns and "block_id_new" in candidate_pairs.columns:
+        existing_blocks = generate_blocks_from_ids(candidate_pairs, 0.25, "block_id_existing", "id_existing", "geometry_existing")
+        new_blocks = generate_blocks_from_ids(candidate_pairs, 0.25, "block_id_new", "id_new", "geometry_new")
+    else:
+        existing_blocks = groupby_apply(existing_buildings.copy(), "LAU_ID", generate_blocks, tolerance=0.25)
+        new_blocks = groupby_apply(new_buildings.copy(), "LAU_ID", generate_blocks, tolerance=0.25)
+
     existing_block_mapping = blocks_id_mapping(existing_blocks)
     new_block_mapping = blocks_id_mapping(new_blocks)
 
     existing_buildings["block_id"] = existing_buildings.index.map(existing_block_mapping)
     new_buildings["block_id"] = new_buildings.index.map(new_block_mapping)
+
     candidate_pairs["block_id_existing"] = candidate_pairs["id_existing"].map(existing_block_mapping)
     candidate_pairs["block_id_new"] = candidate_pairs["id_new"].map(new_block_mapping)
 

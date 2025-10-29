@@ -72,6 +72,28 @@ def generate_blocks(
     return blocks_gdf
 
 
+def generate_blocks_from_ids(
+    buildings: gpd.GeoDataFrame, tolerance: Optional[float] = None, block_id_col: str = "block_id", building_id_col: str = "id", geom_col: str = "geometry"
+) -> Union[gpd.GeoDataFrame, pd.DataFrame]:
+    """
+    Generate blocks from building's predefined block ids.
+    """
+    buildings = buildings.set_geometry(geom_col).rename(columns={building_id_col: "building_ids", block_id_col: "block_id"})
+
+    if tolerance:
+        buildings.geometry = _simplified_rectangular_buffer(buildings, tolerance)
+
+    blocks_gdf = buildings.dissolve(
+        by="block_id",
+        aggfunc={"building_ids": list},
+    )
+
+    blocks_gdf["size"] = blocks_gdf["building_ids"].str.len()
+    blocks_gdf.geometry = _simplified_rectangular_buffer(blocks_gdf, 0.01)  # ensure all geometries are Polygons and valid
+
+    return blocks_gdf
+
+
 def blocks_id_mapping(blocks: gpd.GeoDataFrame) -> pd.Series:
     """
     Create a map to link building IDs with their corresponding block IDs.
