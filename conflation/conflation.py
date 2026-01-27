@@ -10,7 +10,7 @@ from conflation.alignment import correct_local_shift
 from conflation.feateng import calculate_matching_features
 from conflation.prediction import predict_match
 from conflation.merge import block_wise_merge
-from conflation.geoutil import deduplicate
+from conflation.geoutil import deduplicate, generate_blocks, blocks_id_mapping, groupby_apply
 
 
 logging.basicConfig(
@@ -72,6 +72,10 @@ def conflate(
             reference_data = reference_data.rename(columns={"matching_confidence": f"{name}_matching_confidence"})
 
     reference_data = _generate_unique_id(reference_data, db_version)
+
+    if "block_id" not in reference_data.columns:
+        reference_data = _generate_block_id(reference_data)
+
     reference_data.to_parquet(results_path)
 
 
@@ -188,6 +192,14 @@ def _generate_unique_id(gdf: gpd.GeoDataFrame, db_version: str) -> gpd.GeoDataFr
         gdf["LAU_ID"] + "-" +
         gdf.groupby("LAU_ID").cumcount().astype(str)
     )
+
+    return gdf
+
+
+def _generate_block_id(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    blocks = groupby_apply(gdf.copy(), "LAU_ID", generate_blocks, tolerance=0.25)
+    block_mapping = blocks_id_mapping(blocks)
+    gdf["block_id"] = gdf.index.map(block_mapping)
 
     return gdf
 
