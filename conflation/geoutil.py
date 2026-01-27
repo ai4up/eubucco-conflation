@@ -86,7 +86,11 @@ def generate_blocks_from_ids(
     """
     Generate blocks from building's predefined block ids.
     """
-    buildings = buildings.set_geometry(geom_col).rename(columns={building_id_col: "building_ids", block_id_col: "block_id"})
+    buildings = (
+        buildings.drop_duplicates(subset=building_id_col)
+        .rename(columns={building_id_col: "building_ids", block_id_col: "block_id", geom_col: "geometry"})
+        .set_geometry("geometry")
+    )
 
     if tolerance:
         buildings.geometry = _simplified_rectangular_buffer(buildings, tolerance)
