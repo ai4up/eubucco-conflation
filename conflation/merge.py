@@ -1,8 +1,17 @@
+import logging
+
 import geopandas as gpd
 import pandas as pd
 import shapely
 
 from conflation.geoutil import generate_blocks, generate_blocks_from_ids, blocks_id_mapping, iou, dissolve_geometries_of_m_n_matches, groupby_apply
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+logger = logging.getLogger(__name__)
 
 
 def block_wise_merge(
@@ -279,6 +288,8 @@ def _merge_attribute(
         intersection_area = group.geometry.union_all().area
         area = gdf1.loc[group.name].geometry.area
         return intersection_area / area
+
+    logger.info(f"Merging attribute '{attr}'...")
 
     mapping = mapping[~mapping[attr].isna()]
 
