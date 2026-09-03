@@ -35,6 +35,15 @@ conflate(
 )
 ```
 
+## Licensing
+Code in this repository is licensed under the MIT License (see [`LICENSE`](LICENSE)).
+Datasets in `data/` are licensed under the Open Database License (ODbL) v1.0
+(see [`data/LICENSE`](/data/LICENSE)).
+
+Files with `osm` in their name (e.g. `buildings-osm.parquet`) contain data derived
+from OpenStreetMap and must be attributed as © OpenStreetMap contributors,
+https://www.openstreetmap.org/copyright.
+
 
 ## Project Structure
 
