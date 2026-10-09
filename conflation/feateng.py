@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Literal
 import logging
 
 import momepy
@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
+from joblib import Parallel, delayed
 
 from conflation.features import (
     compute_ioa,
@@ -21,6 +22,7 @@ from conflation.geoutil import (
     blocks_id_mapping,
     get_nearest_neighbors,
     groupby_apply,
+    buffer_area,
 )
 
 logging.basicConfig(
@@ -61,8 +63,8 @@ def calculate_matching_features(
     avg_fts = (new_fts + existing_fts) / 2
 
     logger.info("Calculating similarity characteristics...")
-    bldg_similarities = calculate_similarity_features(candidate_pairs["geometry_new"], candidate_pairs["geometry_existing"])
-    block_similarities = calculate_similarity_features(candidate_pairs["block_geometry_new"], candidate_pairs["block_geometry_existing"])
+    bldg_similarities = _parallel_similarity_features(candidate_pairs["geometry_new"], candidate_pairs["geometry_existing"], 8, "processes")
+    block_similarities = _parallel_similarity_features(candidate_pairs["block_geometry_new"], candidate_pairs["block_geometry_existing"], 8, "processes")
     bldg_diff = _percentage_diff(new_fts, existing_fts)
 
     logger.info("Joining characteristics...")
@@ -98,17 +100,51 @@ def calculate_shape_characteristics(geoms: gpd.GeoSeries) -> pd.DataFrame:
     return fts
 
 
+def _parallel_similarity_features(
+    geoms1: gpd.GeoSeries,
+    geoms2: gpd.GeoSeries,
+    n_jobs: int = 1,
+    prefer: Literal["processes", "threads"] = "processes",
+) -> pd.DataFrame:
+    chunks = np.array_split(np.arange(len(geoms1)), n_jobs)
+    results = Parallel(n_jobs=n_jobs, prefer=prefer)(
+        delayed(calculate_similarity_features)(
+            geoms1.iloc[idx],
+            geoms2.iloc[idx],
+        )
+        for idx in chunks
+        if len(idx)
+    )
+
+    return pd.concat(results)
+
+
 def calculate_similarity_features(
     geoms1: gpd.GeoSeries, geoms2: gpd.GeoSeries
 ) -> pd.DataFrame:
     similarities = pd.DataFrame(index=geoms1.index)
+
+    area_1 = geoms1.area
+    area_2 = geoms2.area
+
+    intersection = geoms1.intersection(geoms2, align=False)
+    intersection_area = intersection.area
+
+    union = geoms1.union(geoms2, align=False)
+    union_area = union.area
+
     similarities["distance"] = geoms1.distance(geoms2)
     similarities["distance_centroids"] = geoms1.centroid.distance(geoms2.centroid)
-    similarities["intersection"] = geoms1.intersection(geoms2).area
-    similarities["ioa"] = compute_ioa(geoms1, geoms2)
-    similarities["iou"] = compute_iou(geoms1, geoms2)
+    similarities["intersection"] = intersection_area
+    similarities["ioa"] = intersection_area / np.minimum(area_1, area_2).values
+    similarities["iou"] = (intersection_area / union_area).fillna(0)
     similarities["aligned_iou"] = compute_aligned_iou(geoms1, geoms2)
-    similarities["wall_alignment"] = compute_wall_alignment(geoms1, geoms2)
+
+    buffer_area_1 = buffer_area(geoms1)
+    buffer_area_2 = buffer_area(geoms2)
+    shared_border_area = buffer_area_1 + buffer_area_2 - buffer_area(union)
+    max_possible_shared_border = np.minimum(buffer_area_1, buffer_area_2)
+    similarities["wall_alignment"] = (shared_border_area - intersection_area) / max_possible_shared_border
     similarities["shared_walls"] = compute_shared_wall_length(geoms1, geoms2)
 
     return similarities

@@ -4,6 +4,7 @@ import momepy
 import numpy as np
 import pandas as pd
 import geopandas as gpd
+import shapely
 
 from conflation.geoutil import align_centroids, buffer_area, ioa, iou
 
@@ -26,7 +27,23 @@ def compute_aligned_iou(geoms1: gpd.GeoSeries, geoms2: gpd.GeoSeries) -> pd.Seri
     """
     Compute the Intersection over Union (IoU) after aligning the centroids of geometry pairs.
     """
-    aligned_geoms2 = gpd.GeoSeries([align_centroids(g1, g2) for g1, g2 in zip(geoms1, geoms2)], index=geoms1.index, crs=geoms1.crs)
+    centroids1 = geoms1.centroid
+    centroids2 = geoms2.centroid
+
+    dx = (centroids1.x - centroids2.x).to_numpy()
+    dy = (centroids1.y - centroids2.y).to_numpy()
+
+    geometries = geoms2.to_numpy().copy()
+    coords, geom_idx = shapely.get_coordinates(geometries, return_index=True)
+
+    coords[:, 0] += dx[geom_idx]
+    coords[:, 1] += dy[geom_idx]
+
+    aligned_geoms2 = gpd.GeoSeries(
+        shapely.set_coordinates(geometries, coords),
+        index=geoms1.index,
+        crs=geoms1.crs,
+    )
     aligned_iou = iou(geoms1, aligned_geoms2)
 
     return aligned_iou
@@ -41,9 +58,11 @@ def compute_wall_alignment(
     Computes a normalized measure of how well the outer walls of two geometries align,
     based on buffered boundary overlap excluding interior area.
     """
-    shared_border_area = buffer_area(geoms1) + buffer_area(geoms2) - buffer_area(geoms1.union(geoms2))
+    buffer_area_1 = buffer_area(geoms1)
+    buffer_area_2 = buffer_area(geoms2)
+    shared_border_area = buffer_area_1 + buffer_area_2 - buffer_area(geoms1.union(geoms2))
     intersection_area = geoms1.intersection(geoms2).area
-    max_possible_shared_border = np.minimum(buffer_area(geoms1), buffer_area(geoms2))
+    max_possible_shared_border = np.minimum(buffer_area_1, buffer_area_2)
     alignment = (shared_border_area - intersection_area) / max_possible_shared_border
 
     return alignment

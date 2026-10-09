@@ -1,6 +1,7 @@
 import logging
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 import shapely
 
@@ -251,43 +252,94 @@ def _merge_attribute(
     attr: str,
     agg_func: callable
 ) -> gpd.GeoDataFrame:
-    def argmax_iou(group):
+    def _argmax_iou(mapping: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         """
         Returns the subset of the group that maximizes a heuristic estimate of the intersection-over-union (IoU).
         The geometry is assumed to be topologically correct. Overlapping polygons will lead to incorrect IoU estimates.
         """
-        if len(group) == 1:
-            return group
+        if mapping.empty:
+            return mapping
 
-        group = group.sort_values(by="int_ratio", ascending=False)
-        iou_max = 0
-        for i in range(len(group)):
-            g = group.iloc[:i + 1]
-            union_area = g["area_1"].iloc[0] + (g["area_2"] - g["area_int"]).sum()
-            intersection_area = g["area_int"].sum()
-            new_iou = intersection_area / union_area
-            if new_iou > iou_max:
-                iou_max = new_iou
-            else:
-                return group.iloc[:i]
+        # Single-row groups are always kept. Multi-row groups follow the greedy rule.
+        m = mapping.sort_values(
+            by=["building_id_1", "int_ratio"],
+            ascending=[True, False],
+            kind="mergesort",  # stable: preserves original order for int_ratio ties
+        )
 
-        return group
+        gid = m["building_id_1"]
+        area_int = m["area_int"].to_numpy(dtype=float)
+        area_2 = m["area_2"].to_numpy(dtype=float)
+        area_1 = m["area_1"].to_numpy(dtype=float)
 
-    def iou_group(group):
-        """
-        Returns the intersection-over-union (IoU) of the group. Robust to overlapping polygons.
-        """
-        intersection_area = group.geometry.union_all().area
-        union_area = shapely.unary_union([gdf1.loc[group.name].geometry, *gdf2.loc[group["building_id_2"]].geometry]).area
-        return intersection_area / union_area
+        # First row of each (contiguous, sorted) group
+        gid_vals = gid.to_numpy()
+        is_new_group = np.empty(len(m), dtype=bool)
+        is_new_group[0] = True
+        is_new_group[1:] = gid_vals[1:] != gid_vals[:-1]
 
-    def ioa_group(group):
+        # Within-group cumulative sums = global cumsum minus the running total at the group's start.
+        c_int = np.cumsum(area_int)
+        c_extra = np.cumsum(area_2 - area_int)
+        base_int = pd.Series(np.where(is_new_group, c_int - area_int, np.nan)).ffill().to_numpy()
+        base_extra = pd.Series(np.where(is_new_group, c_extra - (area_2 - area_int), np.nan)).ffill().to_numpy()
+        cum_int = c_int - base_int
+        cum_extra = c_extra - base_extra
+
+        union = area_1 + cum_extra
+        iou = cum_int / union
+
+        # Running max of IoU over previous rows in the group (0.0 at each group start).
+        cummax_incl = pd.Series(iou).groupby(gid.to_numpy()).cummax().to_numpy()
+        prev_max = np.empty_like(iou)
+        prev_max[0] = 0.0
+        prev_max[1:] = cummax_incl[:-1]
+        prev_max[is_new_group] = 0.0
+
+        accepted = iou > prev_max
+
+        # Keep the contiguous leading run of accepted rows per group. Once a row is
+        # rejected, all later rows in that group are dropped. Cumulative product of
+        # the 0/1 accept flag stays 1 only while every prior row was accepted.
+        keep = pd.Series(accepted.astype(np.int64)).groupby(gid.to_numpy()).cumprod().to_numpy().astype(bool)
+
+        return m[keep]
+
+    def _group_ioa_and_iou(
+        mapping: gpd.GeoDataFrame,
+        gdf1: gpd.GeoDataFrame,
+        gdf2: gpd.GeoDataFrame,
+    ) -> tuple:
         """
-        Returns the intersection-over-area (IoA) of the group. Robust to overlapping polygons.
+        Returns the intersection-over-area (IoA) and the intersection-over-union (IoU) of the group.
+        Robust to overlapping polygons.
         """
-        intersection_area = group.geometry.union_all().area
-        area = gdf1.loc[group.name].geometry.area
-        return intersection_area / area
+        # Union of the intersection geometries per existing building -> numerator
+        intersection_union = mapping.dissolve(by="building_id_1").geometry
+        numerator_area = intersection_union.area
+
+        # unit_ioa = numerator / existing building area
+        existing_area = gdf1.geometry.area
+        unit_ioa = numerator_area / numerator_area.index.map(existing_area)
+
+        # unit_iou denominator = area of union(existing building + all matched new).
+        # Dissolve the matched new geometries per existing building,
+        # then union each group's new-geometry with its existing geometry elementwise.
+        new_geoms = gdf2.geometry
+        matched_new = gpd.GeoDataFrame(
+            {"building_id_1": mapping["building_id_1"].to_numpy()},
+            geometry=gpd.GeoSeries(mapping["building_id_2"].map(new_geoms).to_numpy(), crs=gdf1.crs),
+            crs=gdf1.crs,
+        )
+        new_union = matched_new.dissolve(by="building_id_1").geometry
+
+        existing_for_groups = gpd.GeoSeries(
+            [gdf1.geometry.loc[i] for i in new_union.index], index=new_union.index, crs=gdf1.crs
+        )
+        denom_union = existing_for_groups.union(new_union, align=True)
+        unit_iou = numerator_area / denom_union.area
+
+        return unit_ioa, unit_iou
 
     logger.info(f"Merging attribute '{attr}'...")
 
@@ -299,7 +351,7 @@ def _merge_attribute(
         return gdf1
 
     # Only consider intersecting buildings that increase the IoU
-    mapping = mapping.groupby("building_id_1", group_keys=False).apply(argmax_iou)
+    mapping = _argmax_iou(mapping)
 
     # Dissolve geometries of m:n matches
     aggregated_matches = dissolve_geometries_of_m_n_matches(mapping, gdf1, gdf2)
@@ -309,8 +361,9 @@ def _merge_attribute(
     gdf1[f"{attr}_merged"] = mapping.groupby("building_id_1").apply(lambda g: agg_func(g, attr))
     gdf1[f"{attr}_source_ids"] = mapping.groupby("building_id_1")["building_id_2"].apply(list)
     gdf1[f"{attr}_confidence"] = aggregated_matches[["ids_1", "iou"]].explode("ids_1").set_index("ids_1")["iou"]
-    gdf1[f"{attr}_unit_ioa"] = mapping.groupby("building_id_1").apply(ioa_group)
-    gdf1[f"{attr}_unit_iou"] = mapping.groupby("building_id_1").apply(iou_group)
+    unit_ioa, unit_iou = _group_ioa_and_iou(mapping, gdf1, gdf2)
+    gdf1[f"{attr}_unit_ioa"] = unit_ioa
+    gdf1[f"{attr}_unit_iou"] = unit_iou
 
     return gdf1
 
