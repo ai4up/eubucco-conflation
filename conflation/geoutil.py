@@ -254,17 +254,16 @@ def dissolve_geometries_of_m_n_matches(
     Identify connected components and dissolve their geometries to aggregate matching pairs into m:n matches.
     """
     components = _aggregate_to_m_n_matches(matching_pairs)
+    geometry_1 = _dissolve_component_geoms([ids_1 for ids_1, _ in components], gdf1)
+    geometry_2 = _dissolve_component_geoms([ids_2 for _, ids_2 in components], gdf2)
     rows = []
-    for ids_1, ids_2 in components:
-        geoms_1 = gdf1.loc[list(ids_1), 'geometry']
-        geoms_2 = gdf2.loc[list(ids_2), 'geometry']
-
+    for i, (ids_1, ids_2) in enumerate(components):
         rows.append({
             "component_id": uuid.uuid4().hex[:16],
             "ids_1": ids_1,
             "ids_2": ids_2,
-            "geometry_1": geoms_1.union_all(),
-            "geometry_2": geoms_2.union_all(),
+            "geometry_1": geometry_1[i],
+            "geometry_2": geometry_2[i],
         })
 
     gdf = gpd.GeoDataFrame(rows)
@@ -272,6 +271,33 @@ def dissolve_geometries_of_m_n_matches(
     gdf["geometry_2"] = gpd.GeoSeries(gdf["geometry_2"], crs=gdf2.crs)
 
     return gdf
+
+
+def _dissolve_component_geoms(component_id_sets: list, gdf: gpd.GeoDataFrame) -> list:
+    """
+    Union the geometries of each component in one vectorised pass.
+
+    Given a list of id-sets (one per component, in order), returns a list of
+    unioned geometries in the same order. Replaces the original per-component
+    ``gdf.loc[list(ids)].union_all()`` Python loop with a single dissolve() over
+    all components at once. Empty components (should not occur) yield None. -- OG
+    """
+    building_ids = []
+    comp_index = []
+    for i, ids in enumerate(component_id_sets):
+        for bid in ids:
+            building_ids.append(bid)
+            comp_index.append(i)
+
+    frame = gpd.GeoDataFrame(
+        {"_component": comp_index},
+        geometry=gdf.geometry.loc[building_ids].to_numpy(),
+        crs=gdf.crs,
+    )
+    dissolved = frame.dissolve(by="_component").geometry
+
+    # Return geometries ordered by component index (0..n-1), matching input order.
+    return [dissolved.get(i) for i in range(len(component_id_sets))]
 
 
 def groupby_apply(gdf: gpd.GeoDataFrame, by: str, func: Callable[[gpd.GeoDataFrame], gpd.GeoDataFrame], *args, **kwargs) -> gpd.GeoDataFrame:
@@ -298,12 +324,17 @@ def _aggregate_to_m_n_matches(
     """
     G = nx.Graph()
     G.add_edges_from(zip(matching_pairs[col1], matching_pairs[col2]))
+    # Assign every node the id of its connected component.
+    component_of = {}
+    for component_id, nodes in enumerate(nx.connected_components(G)):
+        for node in nodes:
+            component_of[node] = component_id
+
+    # Map each row to its component via col1 (always a node), then group once.
+    component_id_per_node = matching_pairs[col1].map(component_of)
 
     components = []
-    for nodes in nx.connected_components(G):
-        sub_df = matching_pairs[
-            matching_pairs[col1].isin(nodes) | matching_pairs[col2].isin(nodes)
-        ]
+    for _, sub_df in matching_pairs.groupby(component_id_per_node, sort=False):
         set_A = set(sub_df[col1])
         set_B = set(sub_df[col2])
         components.append((set_A, set_B))
